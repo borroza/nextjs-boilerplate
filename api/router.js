@@ -183,7 +183,7 @@ export default async function handler(req, res) {
       return sendVercel404();
     }
 
-    // Блокируем явный системный мусор
+      // Блокируем явный системный мусор
     const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
     const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
     if (hasSystemExtension) {
@@ -191,6 +191,7 @@ export default async function handler(req, res) {
     }
 
     // 4. ОТДАЧА СТАТЬИ ИЗ БАЗЫ
+    // Скачиваем саму статью
     const targetUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content`;
     const response = await fetch(targetUrl, {
       method: 'GET',
@@ -204,10 +205,36 @@ export default async function handler(req, res) {
 
     let htmlContent = data[0].html_content;
 
-    // Внедряем JavaScript-скрипт плавного скролла содержания по H2 И живого выпадающего поиска
+    // ВАЖНО: Параллельно скачиваем из базы названия и пути ВСЕХ статей этого сайта для мгновенного поиска
+    const allPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content&limit=1000`;
+    const allPagesResponse = await fetch(allPagesUrl, {
+      method: 'GET',
+      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+    });
+    const allPagesData = await allPagesResponse.json();
+
+    let searchDatabase = [];
+    if (Array.isArray(allPagesData)) {
+      allPagesData.forEach(p => {
+        // Забираем только статьи, пропускаем служебные страницы
+        if (p.url_path.includes('.') || p.url_path.endsWith('.html')) {
+          let title = p.url_path;
+          // Пытаемся вытащить реальный русский заголовок H1 статьи для красивого вывода в поиске
+          if (p.html_content && p.html_content.includes('<h1')) {
+            const matchH1 = p.html_content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+            if (matchH1 && matchH1[1]) {
+              title = matchH1[1].replace(/<[^>]*>/g, '').trim();
+            }
+          }
+          searchDatabase.push({ name: title, path: p.url_path });
+        }
+      });
+    }
+
+    // Внедряем JavaScript-скрипт с уже готовой базой статей внутри
     const jsScripts = `
     <script>
-      document.addEventListener("DOMContentLoaded", async function() {
+      document.addEventListener("DOMContentLoaded", function() {
         // 1. Плавный скролл содержания по заголовкам H2
         const contentLinks = document.querySelectorAll('details ol li a[href^="#"]');
         const articleHeaders = document.querySelectorAll('.article-body h2, .article h2, article h2');
@@ -224,29 +251,10 @@ export default async function handler(req, res) {
           });
         });
 
-        // ПАРСИНГ SITEMAP ДЛЯ ЖИВОГО ПОИСКА
-        let allArticles = [];
-        try {
-          const sitemapRes = await fetch('/sitemap.xml');
-          const sitemapText = await sitemapRes.text();
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(sitemapText, "text/xml");
-          const locations = xmlDoc.getElementsByTagName("loc");
-          
-          for (let loc of locations) {
-            const url = loc.textContent;
-            if (url.endsWith('.html')) {
-              const rawName = url.substring(url.lastIndexOf('/') + 1).replace('.html', '').split('-').join(' ');
-              const cleanName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-              const relativePath = url.replace(window.location.origin, '');
-              allArticles.push({ name: cleanName, path: relativePath });
-            }
-          }
-        } catch (err) {
-          console.error("Ошибка чтения sitemap:", err);
-        }
+        // База данных для поиска, сгенерированная сервером на лету
+        const allArticles = ${JSON.stringify(searchDatabase)};
 
-        // 2. ЖИВОЙ ВЫПАДАЮЩИЙ ПОИСК ПО САЙТМАПУ
+        // 2. ЖИВОЙ ВЫПАДАЮЩИЙ ПОИСК
         const searchInput = document.getElementById('globalSearchInput') || document.querySelector('input[type="search"]');
         const searchDropdown = document.getElementById('globalSearchDropdown') || document.querySelector('.search-dropdown');
 
@@ -276,7 +284,7 @@ export default async function handler(req, res) {
             if (filtered.length > 0) {
               filtered.forEach(art => {
                 const item = document.createElement('a');
-                item.href = art.path;
+                item.href = art.path.startsWith('/') ? art.path : '/' + art.path;
                 item.className = 'search-item';
                 item.style.display = 'block';
                 item.style.padding = '10px 15px';
@@ -317,3 +325,4 @@ export default async function handler(req, res) {
     return res.status(500).send('Internal Error: ' + err.message);
   }
 }
+
