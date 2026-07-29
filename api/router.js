@@ -181,47 +181,57 @@ return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').set
 if (!urlPath.includes('.') && urlPath !== '/') {
 return sendVercel404();
 }
-// Блокируем явный системный мусор
-const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
-const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
-if (hasSystemExtension) {
-return sendVercel404();
-}
-// 4. ОТДАЧА СТАТЬИ ИЗ БАЗЫ
-const targetUrl = ${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content;
-const response = await fetch(targetUrl, {
-method: 'GET',
-headers: { 'apikey': supabaseKey, 'Authorization': Bearer ${supabaseKey} }
-});
-const data = await response.json();
-if (!Array.isArray(data) || data.length === 0) {
-return sendVercel404();
-}
-let htmlContent = data[0].html_content;
-// Внедряем JavaScript-скрипт ПРИНУДИТЕЛЬНО В КОНЕЦ (Только плавный скролл содержания по H2)
-const jsScripts = `
+    // Блокируем явный системный мусор
+    const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
+    const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
+    if (hasSystemExtension) {
+      return sendVercel404();
+    }
 
-document.addEventListener("DOMContentLoaded", function() {
-const contentLinks = document.querySelectorAll('details ol li a[href^="#"]');
-const articleHeaders = document.querySelectorAll('.article-body h2, .article h2, article h2');
-contentLinks.forEach((anchor, index) => {
-anchor.addEventListener('click', function (e) {
-e.preventDefault();
-const targetElement = articleHeaders[index];
-if (targetElement) {
-targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-const targetId = this.getAttribute('href').substring(1);
-window.history.pushState(null, null, '#' + targetId);
-}
-});
-});
-});
+    // 4. ОТДАЧА СТАТЬИ ИЗ БАЗЫ
+    const targetUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content`;
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+    });
+    const data = await response.json();
 
-`;
-// Жестко приклеиваем скрипт в конец HTML, убирая все проверки тегов body
-htmlContent = htmlContent + jsScripts;
-return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
-} catch (err) {
-return res.status(500).send('Internal Error: ' + err.message);
+    if (!Array.isArray(data) || data.length === 0) {
+      return sendVercel404();
+    }
+
+    // ИСПРАВЛЕНО: Безопасно забираем html_content из первого элемента массива
+    let htmlContent = data[0].html_content;
+
+    // Внедряем JavaScript-скрипт ТОЛЬКО для плавного скролла содержания по заголовкам H2
+    const jsScripts = `
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        const contentLinks = document.querySelectorAll('details ol li a[href^="#"]');
+        const articleHeaders = document.querySelectorAll('.article-body h2, .article h2, article h2');
+
+        contentLinks.forEach((anchor, index) => {
+          anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const targetElement = articleHeaders[index];
+            if (targetElement) {
+              targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              const targetId = this.getAttribute('href').substring(1);
+              window.history.pushState(null, null, '#' + targetId);
+            }
+          });
+        });
+      });
+    </script>
+    </body>`;
+
+    // Принудительно склеиваем текст статьи и наш JavaScript
+    htmlContent = htmlContent + jsScripts;
+
+    return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
+
+  } catch (err) {
+    return res.status(500).send('Internal Error: ' + err.message);
+  }
 }
-}
+
