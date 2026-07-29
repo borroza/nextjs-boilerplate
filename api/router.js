@@ -212,9 +212,13 @@ export default async function handler(req, res) {
     });
     const data = await response.json();
 
-             let htmlContent = data[0].html_content;
+    if (!Array.isArray(data) || data.length === 0) {
+      return sendVercel404();
+    }
 
-    // Внедряем JavaScript-скрипт плавного скролла (по порядковым номерам H2) И поиска
+    let htmlContent = data[0].html_content;
+
+    // Внедряем JavaScript-скрипт плавного скролла И поиска
     const jsScripts = `
     <script>
       document.addEventListener("DOMContentLoaded", function() {
@@ -225,7 +229,6 @@ export default async function handler(req, res) {
         contentLinks.forEach((anchor, index) => {
           anchor.addEventListener('click', function (e) {
             e.preventDefault();
-            // Находим H2, который соответствует этому пункту по счету
             const targetElement = articleHeaders[index];
             if (targetElement) {
               targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -235,7 +238,7 @@ export default async function handler(req, res) {
           });
         });
 
-        // 2. Оживляем Поиск по сайту (ИСПРАВЛЕНО: правильный URL Яндекса)
+        // 2. Оживляем Поиск по сайту (Исправленный URL Яндекса)
         const searchInput = document.querySelector('input[type="search"]') || document.querySelector('.search-box input') || document.querySelector('input[placeholder*="Поиск"]');
         if (searchInput) {
           searchInput.addEventListener('keydown', function(e) {
@@ -260,6 +263,7 @@ export default async function handler(req, res) {
     return res.status(500).send('Internal Error: ' + err.message);
   }
 }
+
 
 }
 
