@@ -183,3 +183,18 @@ export default async function handler(req, res) {
     return res.status(500).send('Internal Error: ' + err.message);
   }
 }
+const targetUrl = ${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content;
+const response = await fetch(targetUrl, {
+method: 'GET',
+headers: { 'apikey': supabaseKey, 'Authorization': Bearer ${supabaseKey} }
+});
+const data = await response.json();
+if (!Array.isArray(data) || data.length === 0) {
+return sendVercel404();
+}
+const htmlContent = data[0].html_content;
+return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
+} catch (err) {
+return res.status(500).send('Internal Error: ' + err.message);
+}
+}
