@@ -253,11 +253,9 @@ export default async function handler(req, res) {
     </script>
     </body>`;
 
-    if (htmlContent.includes('</body>')) {
-      htmlContent = htmlContent.replace('</body>', jsScripts);
-    } else {
-      htmlContent += jsScripts;
-    }
+// Принудительно склеиваем текст статьи и наш JavaScript
+htmlContent = htmlContent + jsScripts;
+
 
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
 
