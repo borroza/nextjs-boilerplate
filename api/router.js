@@ -1,10 +1,16 @@
 export default async function handler(req, res) {
   try {
     const fullUrl = req.url || '';
-    const urlParts = fullUrl.split('?');
-    let urlPath = urlParts[0]; 
+    
+    // Защита от дублей: если в URL есть двойной слэш, сразу отдаем 404
+    if (fullUrl.includes('//')) {
+      return res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8').send('<h1>404 Not Found</h1>');
+    }
 
-    // Нормализуем путь
+    const urlParts = fullUrl.split('?');
+    let urlPath = urlParts[0]; // Чистый путь
+
+    // Нормализуем путь: убираем конечный слэш
     if (urlPath.endsWith('/') && urlPath.length > 1) {
       urlPath = urlPath.slice(0, -1);
     }
@@ -55,7 +61,7 @@ export default async function handler(req, res) {
       return res.status(200).setHeader('Content-Type', 'application/xml; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=60').send(xml);
     }
 
-    // Получаем ID сайта из базы
+    // Получаем инфо о сайте
     const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id,site_title,site_icon`;
     const siteResponse = await fetch(siteCheckUrl, {
       method: 'GET',
@@ -70,13 +76,29 @@ export default async function handler(req, res) {
     const siteTitle = siteData[0].site_title;
     const siteIcon = siteData[0].site_icon || '🛠️';
 
-    // 3. СБОРКА СТРАНИЦЫ КАТЕГОРИИ НА ЛЕТУ С ПАРСИНГОМ ТЕКСТА
-    const isCategoryPath = urlPath.startsWith('/category/') || (!urlPath.includes('.') && urlPath !== '/');
-    
-    if (isCategoryPath) {
-      const currentCategorySlug = urlPath.replace('/category/', '').replace('/', '');
+    // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ (Только если путь начинается с /category/)
+    if (urlPath.startsWith('/category/')) {
+      const currentCategorySlug = urlPath.replace('/category/', '');
 
-      // Тянем url_path и контент, чтобы вытащить H1 и описание
+      if (!currentCategorySlug) {
+        return res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8').send('<h1>404 Not Found</h1>');
+      }
+
+      // СЛОВАРЬ ПЕРЕВОДА СЛАГОВ НА РУССКИЙ ЯЗЫК
+      const categoryTitles = {
+        'avtomobil': 'Автомобили',
+        'standarty-topliva': 'Стандарты топлива',
+        'generator': 'Ремонт генератора',
+        'podveska': 'Подвеска и ходовая'
+      };
+
+      // Переводим в нижний регистр с большой буквы (никакого капса!)
+      let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()];
+      if (!russianCategoryTitle) {
+        const rawTitle = currentCategorySlug.split('-').join(' ');
+        russianCategoryTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1).toLowerCase();
+      }
+
       const categoryPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategorySlug)}&select=url_path,html_content`;
       const catResponse = await fetch(categoryPagesUrl, {
         method: 'GET',
@@ -87,20 +109,15 @@ export default async function handler(req, res) {
       if (!Array.isArray(catPages) || catPages.length === 0) {
         return res.status(404)
                   .setHeader('Content-Type', 'text/html; charset=utf-8')
-                  .send(`<h1>404 Рубрика пуста</h1><p>В категории <b>${currentCategorySlug}</b> пока нет материалов.</p>`);
+                  .send(`<h1>404 Рубрика пуста</h1><p>В категории <b>${russianCategoryTitle}</b> пока нет материалов.</p>`);
       }
 
-      const formattedCatTitle = currentCategorySlug.split('-').join(' ').toUpperCase();
-
-      // HTML структура с готовыми классами под ваш будущий CSS
       let categoryHtml = `<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${formattedCatTitle} | ${siteTitle}</title>
-    <!-- Сюда вы потом подключите ваш общий файл стилей, например: -->
-    <!-- <link rel="stylesheet" href="/style.css"> -->
+    <title>${russianCategoryTitle} | ${siteTitle}</title>
 </head>
 <body>
     <header class="site-header">
@@ -109,45 +126,53 @@ export default async function handler(req, res) {
         </div>
     </header>
     <div class="breadcrumbs">
-        <a href="/">Главная</a> / <span>${formattedCatTitle}</span>
+        <a href="/">Главная</a> / <span>${russianCategoryTitle}</span>
     </div>
     <main class="category-main">
         <div class="category-header">
-            <h1>Рубрика: ${formattedCatTitle}</h1>
+            <!-- УБРАНО СЛОВО "РУБРИКА:" — ЧИСТЫЙ КРАСИВЫЙ ЗАГОЛОВОК -->
+            <h1>${russianCategoryTitle}</h1>
             <p>Список опубликованных материалов в данном разделе сайта.</p>
         </div>
         <div class="articles-grid">`;
 
-      // Генерируем карточки, парся заголовки и анонсы с помощью регулярных выражений
       catPages.forEach(page => {
         let title = 'Читать статью';
         let description = 'Разбираем особенности, даем практические советы и инструкции в детальном обзоре...';
         
         const html = page.html_content || '';
 
-        // 1. Ищем первый тег <h1> для заглавия анонса
         if (html.includes('<h1')) {
           const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
           if (matchH1 && matchH1[1]) {
-            title = matchH1[1].replace(/<[^>]*>/g, '').trim(); // Вырезаем внутренние теги, если они есть
+            title = matchH1[1].replace(/<[^>]*>/g, '').trim();
           }
         }
 
-        // 2. Ищем первый тег <p> для описания анонса
         if (html.includes('<p')) {
           const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
           if (matchP && matchP[1]) {
             const cleanP = matchP[1].replace(/<[^>]*>/g, '').trim();
             if (cleanP.length > 10) {
-              // Обрезаем до 180 символов, чтобы анонс выглядел аккуратно
-              description = cleanP.length > 180 ? cleanP.substring(0, 180) + '...' : cleanP;
+              // Умная обрезка строго по точке
+              if (cleanP.length > 190) {
+                const subStr = cleanP.substring(0, 190);
+                const lastDotIndex = subStr.lastIndexOf('.');
+                if (lastDotIndex > 40) {
+                  description = subStr.substring(0, lastDotIndex + 1);
+                } else {
+                  const lastSpaceIndex = subStr.lastIndexOf(' ');
+                  description = subStr.substring(0, lastSpaceIndex) + '.';
+                }
+              } else {
+                description = cleanP.endsWith('.') ? cleanP : cleanP + '.';
+              }
             }
           }
         }
 
         const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
         
-        // Разметка карточки. Вы сможете оформить ее стилями через класс .article-card, .card-title и .card-description
         categoryHtml += `
             <article class="article-card">
                 <h2 class="card-title"><a href="${fixedPath}">${title}</a></h2>
@@ -165,6 +190,11 @@ export default async function handler(req, res) {
                 .setHeader('Content-Type', 'text/html; charset=utf-8')
                 .setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600')
                 .send(categoryHtml);
+    }
+
+    // Если это путь без .html (папка вроде /avtomobil), отдаем жесткую 404
+    if (!urlPath.includes('.') && urlPath !== '/') {
+      return res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8').send('<h1>404 Not Found</h1>');
     }
 
     // 4. ОТДАЧА ОБЫЧНОЙ СТАТЬИ ПОЛЬЗОВАТЕЛЮ
@@ -185,10 +215,12 @@ export default async function handler(req, res) {
                 .send('<h1>404 Страница не найдена</h1><p>Этого URL еще нет в базе Supabase.</p>');
     }
 
+    const htmlContent = data[0].html_content;
+
     return res.status(200)
               .setHeader('Content-Type', 'text/html; charset=utf-8')
               .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
-              .send(data[0].html_content);
+              .send(htmlContent);
 
   } catch (err) {
     return res.status(500).send('Internal Error: ' + err.message);
