@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     }
 
     const urlParts = fullUrl.split('?');
-    let urlPath = urlParts[0]; 
+    let urlPath = urlParts[0]; // Чистый путь
 
     if (urlPath.endsWith('/') && urlPath.length > 1) {
       urlPath = urlPath.slice(0, -1);
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       return res.status(200).setHeader('Content-Type', 'text/plain; charset=utf-8').send(robotsTxt);
     }
 
-    // 2. ОТДАЧА SITEMAP.XML
+    // 2. УМНАЯ ГЕНЕРАЦИЯ SITEMAP.XML (С АВТО-ДОБАВЛЕНИЕМ КАТЕГОРИЙ)
     if (urlPath === '/sitemap.xml') {
       const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
       const siteResponse = await fetch(siteCheckUrl, {
@@ -43,11 +43,14 @@ export default async function handler(req, res) {
       const siteData = await siteResponse.json();
 
       let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://sitemaps.org">\n`;
+      
+      // Всегда добавляем главную страницу сайта
       xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
 
       if (Array.isArray(siteData) && siteData.length > 0) {
         const currentSiteId = siteData[0].id;
-        const pagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,created_at&limit=50000`;
+        // Тянем пути, даты создания И слаги категорий всех статей
+        const pagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug,created_at&limit=50000`;
         
         const pagesResponse = await fetch(pagesUrl, {
           method: 'GET',
@@ -56,6 +59,20 @@ export default async function handler(req, res) {
         const pagesData = await pagesResponse.json();
 
         if (Array.isArray(pagesData)) {
+          // НА ЛЕТУ НАХОДИМ ВСЕ УНИКАЛЬНЫЕ РУБРИКИ ДЛЯ ЭТОГО САЙТА
+          const uniqueCategories = new Set();
+          pagesData.forEach(page => {
+            if (page.category_slug && page.category_slug.trim() !== '') {
+              uniqueCategories.add(page.category_slug.trim().toLowerCase());
+            }
+          });
+
+          // Выводим страницы категорий в Sitemap самыми первыми
+          uniqueCategories.forEach(catSlug => {
+            xml += `  <url>\n    <loc>${protocol}://${currentDomain}/category/${catSlug}</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
+          });
+
+          // Выводим обычные страницы статей
           pagesData.forEach(page => {
             const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
             const date = page.created_at ? page.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
@@ -80,7 +97,7 @@ export default async function handler(req, res) {
     }
     const currentSiteId = siteData[0].id;
     const siteTitle = siteData[0].site_title;
-    const siteIcon = siteData[0].site_icon || '🛠️';
+    const siteIcon = siteData[0].site_icon || '🛠';
 
     // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
     if (urlPath.startsWith('/category/')) {
@@ -90,6 +107,7 @@ export default async function handler(req, res) {
         return sendVercel404();
       }
 
+      // СЛОВАРЬ ПЕРЕВОДА СЛАГОВ НА РУССКИЙ ЯЗЫК
       const categoryTitles = {
         'avtomobil': 'Автомобили',
         'standarty-topliva': 'Стандарты топлива',
@@ -97,6 +115,7 @@ export default async function handler(req, res) {
         'podveska': 'Подвеска и ходовая'
       };
 
+      // Переводим в нижний регистр с большой буквы (никакого капса!)
       let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()];
       if (!russianCategoryTitle) {
         const rawTitle = currentCategorySlug.split('-').join(' ');
@@ -157,7 +176,7 @@ export default async function handler(req, res) {
       return sendVercel404();
     }
 
-    // Блокируем явный системный мусор
+      // Блокируем явный системный мусор
     const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.css', '.js', '.ico', '.svg', '.json'];
     const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
     if (hasSystemExtension) {
@@ -183,18 +202,4 @@ export default async function handler(req, res) {
     return res.status(500).send('Internal Error: ' + err.message);
   }
 }
-const targetUrl = ${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content;
-const response = await fetch(targetUrl, {
-method: 'GET',
-headers: { 'apikey': supabaseKey, 'Authorization': Bearer ${supabaseKey} }
-});
-const data = await response.json();
-if (!Array.isArray(data) || data.length === 0) {
-return sendVercel404();
-}
-const htmlContent = data[0].html_content;
-return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
-} catch (err) {
-return res.status(500).send('Internal Error: ' + err.message);
-}
-}
+
