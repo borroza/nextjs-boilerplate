@@ -176,7 +176,7 @@ export default async function handler(req, res) {
       return sendVercel404();
     }
 
-      // Блокируем явный системный мусор
+        // Блокируем явный системный мусор
     const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.css', '.js', '.ico', '.svg', '.json'];
     const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
     if (hasSystemExtension) {
@@ -202,4 +202,3 @@ export default async function handler(req, res) {
     return res.status(500).send('Internal Error: ' + err.message);
   }
 }
-
