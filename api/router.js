@@ -92,8 +92,8 @@ export default async function handler(req, res) {
       return res.status(200).setHeader('Content-Type', 'application/xml; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=60').send(xml);
     }
 
-    // Получаем инфо о сайте
-    const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id,site_title,site_icon`;
+       // Получаем инфо о сайте (ИСПРАВЛЕНО: добавили запрос css_content)
+    const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id,site_title,site_icon,css_content`;
     const siteResponse = await fetch(siteCheckUrl, {
       method: 'GET',
       headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
@@ -106,14 +106,18 @@ export default async function handler(req, res) {
     const currentSiteId = siteData[0].id;
     const siteTitle = siteData[0].site_title;
     const siteIcon = siteData[0].site_icon || '🛠';
+    
+    // ИСПРАВЛЕНО: Создаем переменную siteCss, вытаскивая её из базы данных
+    const siteCss = siteData[0].css_content || '';
 
-    // ⚡ ДИНАМИЧЕСКАЯ ОТДАЧА СТИЛЕЙ КУДА ССЫЛАЕТСЯ HTML СТАТЬИ
+    // ДИНАМИЧЕСКАЯ ОТДАЧА СТИЛЕЙ КУДА ССЫЛАЕТСЯ HTML СТАТЬИ ⚡
     if (urlPath === '/static/css/style.css') {
       return res.status(200)
                 .setHeader('Content-Type', 'text/css; charset=utf-8')
                 .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
                 .send(siteCss);
     }
+
 
     
     // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
