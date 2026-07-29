@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       return res.status(200).setHeader('Content-Type', 'text/plain; charset=utf-8').send(robotsTxt);
     }
 
-  // 2. УМНАЯ ГЕНЕРАЦИЯ SITEMAP.XML (КОПИЯ КОНКУРЕНТА)
+    // 2. УМНАЯ ГЕНЕРАЦИЯ SITEMAP.XML (С АВТО-ДОБАВЛЕНИЕМ КАТЕГОРИЙ)
     if (urlPath === '/sitemap.xml') {
       const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
       const siteResponse = await fetch(siteCheckUrl, {
@@ -42,12 +42,13 @@ export default async function handler(req, res) {
       });
       const siteData = await siteResponse.json();
 
-      // ИСПРАВЛЕНО: Полная схема стандарта XML-карт с пробелом перед точкой
-      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://sitemaps.org">\n`;
+      
+      // Всегда добавляем главную страницу сайта
+      xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
 
       if (Array.isArray(siteData) && siteData.length > 0) {
         const currentSiteId = siteData[0].id;
-        // Тянем пути, даты создания И слаги категорий всех статей, сортируя от свежих к старым
         const pagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug,created_at&order=created_at.desc&limit=50000`;
         
         const pagesResponse = await fetch(pagesUrl, {
@@ -56,14 +57,8 @@ export default async function handler(req, res) {
         });
         const pagesData = await pagesResponse.json();
 
-        if (Array.isArray(pagesData) && pagesData.length > 0) {
-          // Вытаскиваем дату самой свежей статьи для главной и категорий
-          const latestDate = pagesData[0].created_at ? pagesData[0].created_at.split('T')[0] : new Date().toISOString().split('T')[0];
-          
-          // Выводим Главную страницу с динамической датой
-          xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <lastmod>${latestDate}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
-
-          // Автоматически находим уникальные рубрики
+        if (Array.isArray(pagesData)) {
+          // НА ЛЕТУ НАХОДИМ ВСЕ УНИКАЛЬНЫЕ РУБРИКИ ДЛЯ ЭТОГО САЙТА
           const uniqueCategories = new Set();
           pagesData.forEach(page => {
             if (page.category_slug && page.category_slug.trim() !== '') {
@@ -71,9 +66,9 @@ export default async function handler(req, res) {
             }
           });
 
-          // Выводим категории с датой последнего обновления
+          // Выводим страницы категорий в Sitemap самыми первыми
           uniqueCategories.forEach(catSlug => {
-            xml += `  <url>\n    <loc>${protocol}://${currentDomain}/category/${catSlug}</loc>\n    <lastmod>${latestDate}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
+            xml += `  <url>\n    <loc>${protocol}://${currentDomain}/category/${catSlug}</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
           });
 
           // Выводим обычные страницы статей
@@ -82,17 +77,13 @@ export default async function handler(req, res) {
             const date = page.created_at ? page.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
             xml += `  <url>\n    <loc>${protocol}://${currentDomain}${fixedPath}</loc>\n    <lastmod>${date}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
           });
-        } else {
-          // Если статей еще нет в базе, отдаем дефолтную главную
-          const today = new Date().toISOString().split('T')[0];
-          xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
         }
       }
       xml += `</urlset>`;
       return res.status(200).setHeader('Content-Type', 'application/xml; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=60').send(xml);
     }
 
-       // Получаем инфо о сайте (ИСПРАВЛЕНО: добавили запрос css_content)
+    // Получаем инфо о сайте
     const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id,site_title,site_icon,css_content`;
     const siteResponse = await fetch(siteCheckUrl, {
       method: 'GET',
@@ -106,8 +97,6 @@ export default async function handler(req, res) {
     const currentSiteId = siteData[0].id;
     const siteTitle = siteData[0].site_title;
     const siteIcon = siteData[0].site_icon || '🛠';
-    
-    // ИСПРАВЛЕНО: Создаем переменную siteCss, вытаскивая её из базы данных
     const siteCss = siteData[0].css_content || '';
 
     // ДИНАМИЧЕСКАЯ ОТДАЧА СТИЛЕЙ КУДА ССЫЛАЕТСЯ HTML СТАТЬИ ⚡
@@ -118,8 +107,6 @@ export default async function handler(req, res) {
                 .send(siteCss);
     }
 
-
-    
     // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
     if (urlPath.startsWith('/category/')) {
       const currentCategorySlug = urlPath.replace('/category/', '');
@@ -136,7 +123,6 @@ export default async function handler(req, res) {
         'podveska': 'Подвеска и ходовая'
       };
 
-      // Переводим в нижний регистр с большой буквы (никакого капса!)
       let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()];
       if (!russianCategoryTitle) {
         const rawTitle = currentCategorySlug.split('-').join(' ');
@@ -154,7 +140,7 @@ export default async function handler(req, res) {
         return sendVercel404();
       }
 
-      let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title></head><body><header class="site-header"><div class="nav-container"><a href="/" class="logo"><span>${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><a href="/">Главная</a> / <span>${russianCategoryTitle}</span></div><main class="category-main"><div class="category-header"><h1>${russianCategoryTitle}</h1><p>Список опубликованных материалов в данном разделе сайта.</p></div><div class="articles-grid">`;
+      let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css"></head><body><header class="site-header"><div class="nav-container"><a href="/" class="logo"><span>${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><a href="/">Главная</a> / <span>${russianCategoryTitle}</span></div><main class="category-main"><div class="category-header"><h1>${russianCategoryTitle}</h1><p>Список опубликованных материалов в данном разделе сайта.</p></div><div class="articles-grid">`;
 
       catPages.forEach(page => {
         let title = 'Читать статью';
@@ -189,81 +175,53 @@ export default async function handler(req, res) {
       });
 
       categoryHtml += `</div></main></body></html>`;
-      return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
-    }
-
-    // Если это путь без расширения и не главная, отдаем Vercel 404
-    if (!urlPath.includes('.') && urlPath !== '/') {
-      return sendVercel404();
-    }
-
-        // Блокируем явный системный мусор
-    const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
-    const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
-    if (hasSystemExtension) {
-      return sendVercel404();
-    }
-
-    // 4. ОТДАЧА СТАТЬИ ИЗ БАЗЫ
-    const targetUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content`;
-    const response = await fetch(targetUrl, {
-      method: 'GET',
-      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-    });
-    const data = await response.json();
-
-    if (!Array.isArray(data) || data.length === 0) {
-      return sendVercel404();
-    }
-
-    let htmlContent = data[0].html_content;
-
-    // Внедряем JavaScript-скрипт плавного скролла И поиска
-    const jsScripts = `
-    <script>
-      document.addEventListener("DOMContentLoaded", function() {
-        // 1. Оживляем Содержание по порядковому номеру заголовков H2
-        const contentLinks = document.querySelectorAll('details ol li a[href^="#"]');
-        const articleHeaders = document.querySelectorAll('.article-body h2, .article h2, article h2');
-
-        contentLinks.forEach((anchor, index) => {
-          anchor.addEventListener('click', function (e) {
-            e.preventDefault();
-            const targetElement = articleHeaders[index];
-            if (targetElement) {
-              targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              const targetId = this.getAttribute('href').substring(1);
-              window.history.pushState(null, null, '#' + targetId);
-            }
-          });
-        });
-
-        // 2. Оживляем Поиск по сайту (Исправленный URL Яндекса)
-        const searchInput = document.querySelector('input[type="search"]') || document.querySelector('.search-box input') || document.querySelector('input[placeholder*="Поиск"]');
-        if (searchInput) {
-          searchInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && this.value.trim() !== '') {
-              e.preventDefault();
-              const domain = window.location.hostname;
-              const query = encodeURIComponent('site:' + domain + ' ' + this.value.trim());
-              window.open('https://yandex.ru' + query, '_blank');
-            }
-          });
-        }
-      });
-    </script>
-    </body>`;
-
-    // Жестко приклеиваем скрипт в конец HTML
-    htmlContent = htmlContent + jsScripts;
-
-    return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
-
-  } catch (err) {
-    return res.status(500).send('Internal Error: ' + err.message);
-  }
+return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
 }
-
-
+// Если это путь без расширения и не главная, отдаем Vercel 404
+if (!urlPath.includes('.') && urlPath !== '/') {
+return sendVercel404();
 }
+// Блокируем явный системный мусор
+const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
+const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
+if (hasSystemExtension) {
+return sendVercel404();
+}
+// 4. ОТДАЧА СТАТЬИ ИЗ БАЗЫ
+const targetUrl = ${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content;
+const response = await fetch(targetUrl, {
+method: 'GET',
+headers: { 'apikey': supabaseKey, 'Authorization': Bearer ${supabaseKey} }
+});
+const data = await response.json();
+if (!Array.isArray(data) || data.length === 0) {
+return sendVercel404();
+}
+let htmlContent = data[0].html_content;
+// Внедряем JavaScript-скрипт ПРИНУДИТЕЛЬНО В КОНЕЦ (Только плавный скролл содержания по H2)
+const jsScripts = `
 
+document.addEventListener("DOMContentLoaded", function() {
+const contentLinks = document.querySelectorAll('details ol li a[href^="#"]');
+const articleHeaders = document.querySelectorAll('.article-body h2, .article h2, article h2');
+contentLinks.forEach((anchor, index) => {
+anchor.addEventListener('click', function (e) {
+e.preventDefault();
+const targetElement = articleHeaders[index];
+if (targetElement) {
+targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+const targetId = this.getAttribute('href').substring(1);
+window.history.pushState(null, null, '#' + targetId);
+}
+});
+});
+});
+
+`;
+// Жестко приклеиваем скрипт в конец HTML, убирая все проверки тегов body
+htmlContent = htmlContent + jsScripts;
+return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
+} catch (err) {
+return res.status(500).send('Internal Error: ' + err.message);
+}
+}
