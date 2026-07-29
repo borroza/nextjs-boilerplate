@@ -212,12 +212,13 @@ export default async function handler(req, res) {
     });
     const data = await response.json();
 
-       let htmlContent = data[0].html_content;
+          let htmlContent = data[0].html_content;
 
-    // Внедряем JavaScript-скрипт плавного скролла для содержания прямо перед закрывающим тегом </body>
-    const scrollScript = `
+    // Внедряем JavaScript-скрипт для плавного скролла содержания И поиска по сайту через Яндекс
+    const jsScripts = `
     <script>
       document.addEventListener("DOMContentLoaded", function() {
+        // 1. Оживляем Содержание (плавный скролл по якорям)
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
           anchor.addEventListener('click', function (e) {
             e.preventDefault();
@@ -229,14 +230,27 @@ export default async function handler(req, res) {
             }
           });
         });
+
+        // 2. Оживляем Поиск по сайту (перенаправление в Яндекс по нажатию Enter)
+        const searchInput = document.querySelector('input[type="search"]') || document.querySelector('.search-box input') || document.querySelector('input[placeholder*="Поиск"]');
+        if (searchInput) {
+          searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && this.value.trim() !== '') {
+              e.preventDefault();
+              const domain = window.location.hostname;
+              const query = encodeURIComponent('site:' + domain + ' ' + this.value.trim());
+              window.open('https://yandex.ru' + query, '_blank');
+            }
+          });
+        }
       });
     </script>
     </body>`;
 
     if (htmlContent.includes('</body>')) {
-      htmlContent = htmlContent.replace('</body>', scrollScript);
+      htmlContent = htmlContent.replace('</body>', jsScripts);
     } else {
-      htmlContent += scrollScript;
+      htmlContent += jsScripts;
     }
 
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
@@ -246,7 +260,3 @@ export default async function handler(req, res) {
   }
 }
 
-  } catch (err) {
-    return res.status(500).send('Internal Error: ' + err.message);
-  }
-}
