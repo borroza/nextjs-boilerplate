@@ -181,7 +181,7 @@ return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').set
 if (!urlPath.includes('.') && urlPath !== '/') {
 return sendVercel404();
 }
-    // Блокируем явный системный мусор
+      // Блокируем явный системный мусор
     const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
     const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
     if (hasSystemExtension) {
@@ -200,13 +200,13 @@ return sendVercel404();
       return sendVercel404();
     }
 
-    // ИСПРАВЛЕНО: Безопасно забираем html_content из первого элемента массива
-    let htmlContent = data[0].html_content;
+    let htmlContent = data.html_content;
 
-    // Внедряем JavaScript-скрипт ТОЛЬКО для плавного скролла содержания по заголовкам H2
+    // Внедряем JavaScript-скрипт: Скролл содержания И Живой Поиск по сайтмапу
     const jsScripts = `
     <script>
-      document.addEventListener("DOMContentLoaded", function() {
+      document.addEventListener("DOMContentLoaded", async function() {
+        // 1. Оживляем Содержание по порядковому номеру заголовков H2
         const contentLinks = document.querySelectorAll('details ol li a[href^="#"]');
         const articleHeaders = document.querySelectorAll('.article-body h2, .article h2, article h2');
 
@@ -221,11 +221,92 @@ return sendVercel404();
             }
           });
         });
+
+        // ПАРСИНГ SITEMAP ДЛЯ РАБОТЫ ЖИВОГО ПОИСКА
+        let allArticles = [];
+        try {
+          const sitemapRes = await fetch('/sitemap.xml');
+          const sitemapText = await sitemapRes.text();
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(sitemapText, "text/xml");
+          const locations = xmlDoc.getElementsByTagName("loc");
+          
+          for (let loc of locations) {
+            const url = loc.textContent;
+            if (url.endsWith('.html')) {
+              const rawName = url.substring(url.lastIndexOf('/') + 1).replace('.html', '').split('-').join(' ');
+              const cleanName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+              const relativePath = url.replace(window.location.origin, '');
+              allArticles.push({ name: cleanName, path: relativePath });
+            }
+          }
+        } catch (err) {
+          console.error("Ошибка чтения sitemap:", err);
+        }
+
+        // 2. ЖИВОЙ ПОИСК ПО САЙТМАПУ (КАК У КОНКУРЕНТА)
+        const searchInput = document.getElementById('globalSearchInput') || document.querySelector('input[type="search"]');
+        const searchDropdown = document.getElementById('globalSearchDropdown') || document.querySelector('.search-dropdown');
+
+        if (searchInput && searchDropdown) {
+          searchDropdown.style.display = 'none';
+          searchDropdown.style.position = 'absolute';
+          searchDropdown.style.backgroundColor = '#fff';
+          searchDropdown.style.border = '1px solid #e2e8f0';
+          searchDropdown.style.borderRadius = '8px';
+          searchDropdown.style.width = searchInput.offsetWidth + 'px';
+          searchDropdown.style.maxHeight = '300px';
+          searchDropdown.style.overflowY = 'auto';
+          searchDropdown.style.zIndex = '999';
+          searchDropdown.style.boxShadow = '0 10px 15px -3px rgba(0,0,0,0.1)';
+
+          searchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            searchDropdown.innerHTML = '';
+            
+            if (query.length < 2) {
+              searchDropdown.style.display = 'none';
+              return;
+            }
+
+            const filtered = allArticles.filter(art => art.name.toLowerCase().includes(query)).slice(0, 5);
+
+            if (filtered.length > 0) {
+              filtered.forEach(art => {
+                const item = document.createElement('a');
+                item.href = art.path;
+                item.className = 'search-item';
+                item.style.display = 'block';
+                item.style.padding = '10px 15px';
+                item.style.color = '#1e293b';
+                item.style.textDecoration = 'none';
+                item.style.borderBottom = '1px solid #f1f5f9';
+                item.style.fontSize = '14px';
+                item.innerHTML = '📄 ' + art.name;
+                
+                item.addEventListener('mouseover', () => item.style.backgroundColor = '#f1f5f9');
+                item.addEventListener('mouseout', () => item.style.backgroundColor = '#fff');
+                
+                searchDropdown.appendChild(item);
+              });
+              searchDropdown.style.display = 'block';
+            } else {
+              searchDropdown.innerHTML = '<div style="padding: 10px 15px; color: #64748b; font-size: 14px;">Ничего не найдено</div>';
+              searchDropdown.style.display = 'block';
+            }
+          });
+
+          document.addEventListener('click', function(e) {
+            if (e.target !== searchInput && e.target !== searchDropdown) {
+              searchDropdown.style.display = 'none';
+            }
+          });
+        }
       });
     </script>
     </body>`;
 
-    // Принудительно склеиваем текст статьи и наш JavaScript
+    // Жестко приклеиваем скрипт в конец HTML
     htmlContent = htmlContent + jsScripts;
 
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
@@ -234,4 +315,5 @@ return sendVercel404();
     return res.status(500).send('Internal Error: ' + err.message);
   }
 }
+
 
