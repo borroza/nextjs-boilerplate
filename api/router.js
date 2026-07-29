@@ -1,16 +1,22 @@
 export default async function handler(req, res) {
+  // Универсальная функция, которая выводит ТОЧНУЮ копию фирменной страницы 404 Vercel
+  const sendVercel404 = () => {
+    const requestId = `arn1::fbm7g-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
+    const vercelHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>404: NOT_FOUND</title><style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#fff;color:#000;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh}ul{list-style-type:none;padding:0}.container{max-width:500px;text-align:center;padding:20px;border:1px solid #eaeaea;border-radius:5px}h1{font-size:24px;font-weight:500;margin-top:0;margin-bottom:20px;border-bottom:1px solid #eaeaea;padding-bottom:20px}p{font-size:14px;color:#666;margin:10px 0;text-align:left}code{font-family:monospace;background:#fafafa;padding:3px 5px;border-radius:3px;border:1px solid #eaeaea}a{color:#0070f3;text-decoration:none;font-size:14px}a:hover{text-decoration:underline}</style></head><body><div class="container"><h1>404: NOT_FOUND</h1><p>Code: <code>"NOT_FOUND"</code></p><p>ID: <code>"${requestId}"</code></p><br><a href="https://vercel.com" target="_blank" rel="noopener noreferrer">Read our documentation to learn more about this error.</a></div></body></html>`;
+    return res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8').send(vercelHtml);
+  };
+
   try {
     const fullUrl = req.url || '';
     
-    // Защита от дублей: при двойном слэше отдаем системную страницу Vercel
+    // Защита от дублей
     if (fullUrl.includes('//')) {
-      return res.status(404).end();
+      return sendVercel404();
     }
 
     const urlParts = fullUrl.split('?');
-    let urlPath = urlParts[0]; // Чистый путь
+    let urlPath = urlParts[0]; 
 
-    // Нормализуем путь: убираем конечный слэш
     if (urlPath.endsWith('/') && urlPath.length > 1) {
       urlPath = urlPath.slice(0, -1);
     }
@@ -69,9 +75,8 @@ export default async function handler(req, res) {
     });
     const siteData = await siteResponse.json();
     
-    // Если домен вообще не привязан к базе, отдаем системную 404
     if (!Array.isArray(siteData) || siteData.length === 0) {
-      return res.status(404).end();
+      return sendVercel404();
     }
     const currentSiteId = siteData[0].id;
     const siteTitle = siteData[0].site_title;
@@ -82,10 +87,9 @@ export default async function handler(req, res) {
       const currentCategorySlug = urlPath.replace('/category/', '');
 
       if (!currentCategorySlug) {
-        return res.status(404).end();
+        return sendVercel404();
       }
 
-      // СЛОВАРЬ ПЕРЕВОДА СЛАГОВ НА РУССКИЙ ЯЗЫК
       const categoryTitles = {
         'avtomobil': 'Автомобили',
         'standarty-topliva': 'Стандарты топлива',
@@ -106,45 +110,20 @@ export default async function handler(req, res) {
       });
       const catPages = await catResponse.json();
 
-      // ИСПРАВЛЕНО: Если рубрики не существует или она пуста — отдаем системную 404 Vercel вместо текста
       if (!Array.isArray(catPages) || catPages.length === 0) {
-        return res.status(404).end();
+        return sendVercel404();
       }
 
-      let categoryHtml = `<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${russianCategoryTitle} | ${siteTitle}</title>
-</head>
-<body>
-    <header class="site-header">
-        <div class="nav-container">
-            <a href="/" class="logo"><span>${siteIcon}</span> ${siteTitle}</a>
-        </div>
-    </header>
-    <div class="breadcrumbs">
-        <a href="/">Главная</a> / <span>${russianCategoryTitle}</span>
-    </div>
-    <main class="category-main">
-        <div class="category-header">
-            <h1>${russianCategoryTitle}</h1>
-            <p>Список опубликованных материалов в данном разделе сайта.</p>
-        </div>
-        <div class="articles-grid">`;
+      let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title></head><body><header class="site-header"><div class="nav-container"><a href="/" class="logo"><span>${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><a href="/">Главная</a> / <span>${russianCategoryTitle}</span></div><main class="category-main"><div class="category-header"><h1>${russianCategoryTitle}</h1><p>Список опубликованных материалов в данном разделе сайта.</p></div><div class="articles-grid">`;
 
       catPages.forEach(page => {
         let title = 'Читать статью';
-        let description = 'Разбираем особенности, даем practical советы и инструкции в детальном обзоре...';
-        
+        let description = 'Разбираем особенности, даем практические советы и инструкции в детальном обзоре...';
         const html = page.html_content || '';
 
         if (html.includes('<h1')) {
           const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-          if (matchH1 && matchH1[1]) {
-            title = matchH1[1].replace(/<[^>]*>/g, '').trim();
-          }
+          if (matchH1 && matchH1[1]) title = matchH1[1].replace(/<[^>]*>/g, '').trim();
         }
 
         if (html.includes('<p')) {
@@ -155,50 +134,37 @@ export default async function handler(req, res) {
               if (cleanP.length > 190) {
                 const subStr = cleanP.substring(0, 190);
                 const lastDotIndex = subStr.lastIndexOf('.');
-                if (lastDotIndex > 40) {
-                  description = subStr.substring(0, lastDotIndex + 1);
-                } else {
+                if (lastDotIndex > 40) description = subStr.substring(0, lastDotIndex + 1);
+                else {
                   const lastSpaceIndex = subStr.lastIndexOf(' ');
                   description = subStr.substring(0, lastSpaceIndex) + '.';
                 }
-              } else {
-                description = cleanP.endsWith('.') ? cleanP : cleanP + '.';
-              }
+              } else description = cleanP.endsWith('.') ? cleanP : cleanP + '.';
             }
           }
         }
 
         const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
-        
-        categoryHtml += `
-            <article class="article-card">
-                <h2 class="card-title"><a href="${fixedPath}">${title}</a></h2>
-                <p class="card-description">${description}</p>
-            </article>`;
+        categoryHtml += `<article class="article-card"><h2 class="card-title"><a href="${fixedPath}">${title}</a></h2><p class="card-description">${description}</p></article>`;
       });
 
-      categoryHtml += `
-        </div>
-    </main>
-</body>
-</html>`;
-
-      return res.status(200)
-                .setHeader('Content-Type', 'text/html; charset=utf-8')
-                .setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600')
-                .send(categoryHtml);
+      categoryHtml += `</div></main></body></html>`;
+      return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
     }
 
-    // Если это путь без .html (папка вроде /avtomobil), отдаем системную 404 Vercel
+    // Если это путь без расширения и не главная, отдаем Vercel 404
     if (!urlPath.includes('.') && urlPath !== '/') {
-      return res.status(404).end();
+      return sendVercel404();
     }
 
-    // 4. ОТДАЧА ОБЫЧНОЙ СТАТЬИ ПОЛЬЗОВАТЕЛЮ
-    if (urlPath.includes('.') && !urlPath.endsWith('.html')) {
-      return res.status(404).end();
+    // Блокируем явный системный мусор
+    const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.css', '.js', '.ico', '.svg', '.json'];
+    const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
+    if (hasSystemExtension) {
+      return sendVercel404();
     }
 
+    // 4. ОТДАЧА СТАТЬИ ИЗ БАЗЫ
     const targetUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content`;
     const response = await fetch(targetUrl, {
       method: 'GET',
@@ -206,17 +172,12 @@ export default async function handler(req, res) {
     });
     const data = await response.json();
 
-    // Если статья не найдена — отдаем системную 404 Vercel
     if (!Array.isArray(data) || data.length === 0) {
-      return res.status(404).end();
+      return sendVercel404();
     }
 
     const htmlContent = data[0].html_content;
-
-    return res.status(200)
-              .setHeader('Content-Type', 'text/html; charset=utf-8')
-              .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
-              .send(htmlContent);
+    return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
 
   } catch (err) {
     return res.status(500).send('Internal Error: ' + err.message);
