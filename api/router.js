@@ -212,32 +212,30 @@ export default async function handler(req, res) {
     });
     const data = await response.json();
 
-          let htmlContent = data[0].html_content;
+             let htmlContent = data[0].html_content;
 
-    // Внедряем JavaScript-скрипт для плавного скролла содержания И поиска по сайту через Яндекс
+    // Внедряем JavaScript-скрипт плавного скролла (по порядковым номерам H2) И поиска
     const jsScripts = `
     <script>
       document.addEventListener("DOMContentLoaded", function() {
-               // 1. Оживляем Содержание (плавный скролл по якорям)
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        // 1. Оживляем Содержание по порядковому номеру заголовков H2
+        const contentLinks = document.querySelectorAll('details ol li a[href^="#"]');
+        const articleHeaders = document.querySelectorAll('.article-body h2, .article h2, article h2');
+
+        contentLinks.forEach((anchor, index) => {
           anchor.addEventListener('click', function (e) {
             e.preventDefault();
-            const targetId = this.getAttribute('href').substring(1);
-            
-            // Ищем элемент по ID, по атрибуту name или по тегу внутри заголовка
-            let targetElement = document.getElementById(targetId) || 
-                                document.querySelector('[name="' + targetId + '"]') ||
-                                document.querySelector('a[name="' + targetId + '"]');
-            
+            // Находим H2, который соответствует этому пункту по счету
+            const targetElement = articleHeaders[index];
             if (targetElement) {
               targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              const targetId = this.getAttribute('href').substring(1);
               window.history.pushState(null, null, '#' + targetId);
             }
           });
         });
 
-
-        // 2. Оживляем Поиск по сайту (перенаправление в Яндекс по нажатию Enter)
+        // 2. Оживляем Поиск по сайту (ИСПРАВЛЕНО: правильный URL Яндекса)
         const searchInput = document.querySelector('input[type="search"]') || document.querySelector('.search-box input') || document.querySelector('input[placeholder*="Поиск"]');
         if (searchInput) {
           searchInput.addEventListener('keydown', function(e) {
@@ -253,14 +251,15 @@ export default async function handler(req, res) {
     </script>
     </body>`;
 
-// Принудительно склеиваем текст статьи и наш JavaScript
-htmlContent = htmlContent + jsScripts;
-
+    // Жестко приклеиваем скрипт в конец HTML
+    htmlContent = htmlContent + jsScripts;
 
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
 
   } catch (err) {
     return res.status(500).send('Internal Error: ' + err.message);
   }
+}
+
 }
 
