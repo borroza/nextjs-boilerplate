@@ -212,12 +212,39 @@ export default async function handler(req, res) {
     });
     const data = await response.json();
 
-    if (!Array.isArray(data) || data.length === 0) {
-      return sendVercel404();
+       let htmlContent = data[0].html_content;
+
+    // Внедряем JavaScript-скрипт плавного скролла для содержания прямо перед закрывающим тегом </body>
+    const scrollScript = `
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+          anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const targetId = this.getAttribute('href').substring(1);
+            const targetElement = document.getElementById(targetId) || document.getElementsByName(targetId)[0];
+            if (targetElement) {
+              targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              window.history.pushState(null, null, '#' + targetId);
+            }
+          });
+        });
+      });
+    </script>
+    </body>`;
+
+    if (htmlContent.includes('</body>')) {
+      htmlContent = htmlContent.replace('</body>', scrollScript);
+    } else {
+      htmlContent += scrollScript;
     }
 
-    const htmlContent = data[0].html_content;
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
+
+  } catch (err) {
+    return res.status(500).send('Internal Error: ' + err.message);
+  }
+}
 
   } catch (err) {
     return res.status(500).send('Internal Error: ' + err.message);
