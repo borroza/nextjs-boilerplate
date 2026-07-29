@@ -218,18 +218,24 @@ export default async function handler(req, res) {
     const jsScripts = `
     <script>
       document.addEventListener("DOMContentLoaded", function() {
-        // 1. Оживляем Содержание (плавный скролл по якорям)
+               // 1. Оживляем Содержание (плавный скролл по якорям)
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
           anchor.addEventListener('click', function (e) {
             e.preventDefault();
             const targetId = this.getAttribute('href').substring(1);
-            const targetElement = document.getElementById(targetId) || document.getElementsByName(targetId)[0];
+            
+            // Ищем элемент по ID, по атрибуту name или по тегу внутри заголовка
+            let targetElement = document.getElementById(targetId) || 
+                                document.querySelector('[name="' + targetId + '"]') ||
+                                document.querySelector('a[name="' + targetId + '"]');
+            
             if (targetElement) {
               targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
               window.history.pushState(null, null, '#' + targetId);
             }
           });
         });
+
 
         // 2. Оживляем Поиск по сайту (перенаправление в Яндекс по нажатию Enter)
         const searchInput = document.querySelector('input[type="search"]') || document.querySelector('.search-box input') || document.querySelector('input[placeholder*="Поиск"]');
