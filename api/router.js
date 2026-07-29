@@ -107,6 +107,15 @@ export default async function handler(req, res) {
     const siteTitle = siteData[0].site_title;
     const siteIcon = siteData[0].site_icon || '🛠';
 
+    // ⚡ ДИНАМИЧЕСКАЯ ОТДАЧА СТИЛЕЙ КУДА ССЫЛАЕТСЯ HTML СТАТЬИ
+    if (urlPath === '/static/css/style.css') {
+      return res.status(200)
+                .setHeader('Content-Type', 'text/css; charset=utf-8')
+                .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
+                .send(siteCss);
+    }
+
+    
     // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
     if (urlPath.startsWith('/category/')) {
       const currentCategorySlug = urlPath.replace('/category/', '');
@@ -185,7 +194,7 @@ export default async function handler(req, res) {
     }
 
         // Блокируем явный системный мусор
-    const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.css', '.js', '.ico', '.svg', '.json'];
+    const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
     const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
     if (hasSystemExtension) {
       return sendVercel404();
