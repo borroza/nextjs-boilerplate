@@ -171,7 +171,6 @@ export default async function handler(req, res) {
         }
 
         const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
-        const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
         categoryHtml += `<article class="article-card"><h2 class="card-title"><a href="${fixedPath}">${title}</a></h2><p class="card-description">${description}</p></article>`;
       });
 
