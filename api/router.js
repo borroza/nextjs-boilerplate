@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       return res.status(200).setHeader('Content-Type', 'text/plain; charset=utf-8').send(robotsTxt);
     }
 
-    // 2. УМНАЯ ГЕНЕРАЦИЯ SITEMAP.XML (С АВТО-ДОБАВЛЕНИЕМ КАТЕГОРИЙ)
+    // 2. УМНАЯ ГЕНЕРАЦИЯ SITEMAP.XML
     if (urlPath === '/sitemap.xml') {
       const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
       const siteResponse = await fetch(siteCheckUrl, {
@@ -43,8 +43,6 @@ export default async function handler(req, res) {
       const siteData = await siteResponse.json();
 
       let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://sitemaps.org">\n`;
-      
-      // Всегда добавляем главную страницу сайта
       xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
 
       if (Array.isArray(siteData) && siteData.length > 0) {
@@ -57,8 +55,10 @@ export default async function handler(req, res) {
         });
         const pagesData = await pagesResponse.json();
 
-        if (Array.isArray(pagesData)) {
-          // НА ЛЕТУ НАХОДИМ ВСЕ УНИКАЛЬНЫЕ РУБРИКИ ДЛЯ ЭТОГО САЙТА
+        if (Array.isArray(pagesData) && pagesData.length > 0) {
+          const latestDate = pagesData[0].created_at ? pagesData[0].created_at.split('T')[0] : new Date().toISOString().split('T')[0];
+          xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <lastmod>${latestDate}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
+
           const uniqueCategories = new Set();
           pagesData.forEach(page => {
             if (page.category_slug && page.category_slug.trim() !== '') {
@@ -66,17 +66,18 @@ export default async function handler(req, res) {
             }
           });
 
-          // Выводим страницы категорий в Sitemap самыми первыми
           uniqueCategories.forEach(catSlug => {
-            xml += `  <url>\n    <loc>${protocol}://${currentDomain}/category/${catSlug}</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
+            xml += `  <url>\n    <loc>${protocol}://${currentDomain}/category/${catSlug}</loc>\n    <lastmod>${latestDate}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
           });
 
-          // Выводим обычные страницы статей
           pagesData.forEach(page => {
             const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
             const date = page.created_at ? page.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
             xml += `  <url>\n    <loc>${protocol}://${currentDomain}${fixedPath}</loc>\n    <lastmod>${date}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
           });
+        } else {
+          const today = new Date().toISOString().split('T')[0];
+          xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
         }
       }
       xml += `</urlset>`;
@@ -115,7 +116,6 @@ export default async function handler(req, res) {
         return sendVercel404();
       }
 
-      // СЛОВАРЬ ПЕРЕВОДА СЛАГОВ НА РУССКИЙ ЯЗЫК
       const categoryTitles = {
         'avtomobil': 'Автомобили',
         'standarty-topliva': 'Стандарты топлива',
@@ -171,17 +171,20 @@ export default async function handler(req, res) {
         }
 
         const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
+        const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
         categoryHtml += `<article class="article-card"><h2 class="card-title"><a href="${fixedPath}">${title}</a></h2><p class="card-description">${description}</p></article>`;
       });
 
       categoryHtml += `</div></main></body></html>`;
-return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
-}
-// Если это путь без расширения и не главная, отдаем Vercel 404
-if (!urlPath.includes('.') && urlPath !== '/') {
-return sendVercel404();
-}
-      // Блокируем явный системный мусор
+      return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
+    }
+
+    // Если это путь без расширения и не главная, отдаем Vercel 404
+    if (!urlPath.includes('.') && urlPath !== '/') {
+      return sendVercel404();
+    }
+
+    // Блокируем явный системный мусор
     const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
     const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
     if (hasSystemExtension) {
@@ -200,13 +203,13 @@ return sendVercel404();
       return sendVercel404();
     }
 
-    let htmlContent = data.html_content;
+    let htmlContent = data[0].html_content;
 
-    // Внедряем JavaScript-скрипт: Скролл содержания И Живой Поиск по сайтмапу
+    // Внедряем JavaScript-скрипт плавного скролла содержания по H2 И живого выпадающего поиска
     const jsScripts = `
     <script>
       document.addEventListener("DOMContentLoaded", async function() {
-        // 1. Оживляем Содержание по порядковому номеру заголовков H2
+        // 1. Плавный скролл содержания по заголовкам H2
         const contentLinks = document.querySelectorAll('details ol li a[href^="#"]');
         const articleHeaders = document.querySelectorAll('.article-body h2, .article h2, article h2');
 
@@ -222,7 +225,7 @@ return sendVercel404();
           });
         });
 
-        // ПАРСИНГ SITEMAP ДЛЯ РАБОТЫ ЖИВОГО ПОИСКА
+        // ПАРСИНГ SITEMAP ДЛЯ ЖИВОГО ПОИСКА
         let allArticles = [];
         try {
           const sitemapRes = await fetch('/sitemap.xml');
@@ -244,7 +247,7 @@ return sendVercel404();
           console.error("Ошибка чтения sitemap:", err);
         }
 
-        // 2. ЖИВОЙ ПОИСК ПО САЙТМАПУ (КАК У КОНКУРЕНТА)
+        // 2. ЖИВОЙ ВЫПАДАЮЩИЙ ПОИСК ПО САЙТМАПУ
         const searchInput = document.getElementById('globalSearchInput') || document.querySelector('input[type="search"]');
         const searchDropdown = document.getElementById('globalSearchDropdown') || document.querySelector('.search-dropdown');
 
@@ -306,7 +309,7 @@ return sendVercel404();
     </script>
     </body>`;
 
-    // Жестко приклеиваем скрипт в конец HTML
+    // Принудительно склеиваем текст статьи и наш JavaScript
     htmlContent = htmlContent + jsScripts;
 
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
@@ -315,5 +318,3 @@ return sendVercel404();
     return res.status(500).send('Internal Error: ' + err.message);
   }
 }
-
-
