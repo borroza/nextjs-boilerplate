@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       return res.status(200).setHeader('Content-Type', 'text/plain; charset=utf-8').send(robotsTxt);
     }
 
-    // 2. УМНАЯ ГЕНЕРАЦИЯ SITEMAP.XML (С АВТО-ДОБАВЛЕНИЕМ КАТЕГОРИЙ)
+  // 2. УМНАЯ ГЕНЕРАЦИЯ SITEMAP.XML (КОПИЯ КОНКУРЕНТА)
     if (urlPath === '/sitemap.xml') {
       const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
       const siteResponse = await fetch(siteCheckUrl, {
@@ -42,15 +42,13 @@ export default async function handler(req, res) {
       });
       const siteData = await siteResponse.json();
 
-      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://sitemaps.org">\n`;
-      
-      // Всегда добавляем главную страницу сайта
-      xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
+      // ИСПРАВЛЕНО: Полная схема стандарта XML-карт с пробелом перед точкой
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
       if (Array.isArray(siteData) && siteData.length > 0) {
         const currentSiteId = siteData[0].id;
-        // Тянем пути, даты создания И слаги категорий всех статей
-        const pagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug,created_at&limit=50000`;
+        // Тянем пути, даты создания И слаги категорий всех статей, сортируя от свежих к старым
+        const pagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug,created_at&order=created_at.desc&limit=50000`;
         
         const pagesResponse = await fetch(pagesUrl, {
           method: 'GET',
@@ -58,8 +56,14 @@ export default async function handler(req, res) {
         });
         const pagesData = await pagesResponse.json();
 
-        if (Array.isArray(pagesData)) {
-          // НА ЛЕТУ НАХОДИМ ВСЕ УНИКАЛЬНЫЕ РУБРИКИ ДЛЯ ЭТОГО САЙТА
+        if (Array.isArray(pagesData) && pagesData.length > 0) {
+          // Вытаскиваем дату самой свежей статьи для главной и категорий
+          const latestDate = pagesData[0].created_at ? pagesData[0].created_at.split('T')[0] : new Date().toISOString().split('T')[0];
+          
+          // Выводим Главную страницу с динамической датой
+          xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <lastmod>${latestDate}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
+
+          // Автоматически находим уникальные рубрики
           const uniqueCategories = new Set();
           pagesData.forEach(page => {
             if (page.category_slug && page.category_slug.trim() !== '') {
@@ -67,9 +71,9 @@ export default async function handler(req, res) {
             }
           });
 
-          // Выводим страницы категорий в Sitemap самыми первыми
+          // Выводим категории с датой последнего обновления
           uniqueCategories.forEach(catSlug => {
-            xml += `  <url>\n    <loc>${protocol}://${currentDomain}/category/${catSlug}</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
+            xml += `  <url>\n    <loc>${protocol}://${currentDomain}/category/${catSlug}</loc>\n    <lastmod>${latestDate}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
           });
 
           // Выводим обычные страницы статей
@@ -78,6 +82,10 @@ export default async function handler(req, res) {
             const date = page.created_at ? page.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
             xml += `  <url>\n    <loc>${protocol}://${currentDomain}${fixedPath}</loc>\n    <lastmod>${date}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
           });
+        } else {
+          // Если статей еще нет в базе, отдаем дефолтную главную
+          const today = new Date().toISOString().split('T')[0];
+          xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
         }
       }
       xml += `</urlset>`;
