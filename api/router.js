@@ -2,9 +2,9 @@ export default async function handler(req, res) {
   try {
     const fullUrl = req.url || '';
     
-    // Защита от дублей: если в URL есть двойной слэш, сразу отдаем 404
+    // Защита от дублей: при двойном слэше отдаем системную страницу Vercel
     if (fullUrl.includes('//')) {
-      return res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8').send('<h1>404 Not Found</h1>');
+      return res.status(404).end();
     }
 
     const urlParts = fullUrl.split('?');
@@ -69,19 +69,20 @@ export default async function handler(req, res) {
     });
     const siteData = await siteResponse.json();
     
+    // Если домен вообще не привязан к базе, отдаем системную 404
     if (!Array.isArray(siteData) || siteData.length === 0) {
-      return res.status(404).send('Site not configured in Supabase.');
+      return res.status(404).end();
     }
     const currentSiteId = siteData[0].id;
     const siteTitle = siteData[0].site_title;
     const siteIcon = siteData[0].site_icon || '🛠️';
 
-    // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ (Только если путь начинается с /category/)
+    // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
     if (urlPath.startsWith('/category/')) {
       const currentCategorySlug = urlPath.replace('/category/', '');
 
       if (!currentCategorySlug) {
-        return res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8').send('<h1>404 Not Found</h1>');
+        return res.status(404).end();
       }
 
       // СЛОВАРЬ ПЕРЕВОДА СЛАГОВ НА РУССКИЙ ЯЗЫК
@@ -92,7 +93,6 @@ export default async function handler(req, res) {
         'podveska': 'Подвеска и ходовая'
       };
 
-      // Переводим в нижний регистр с большой буквы (никакого капса!)
       let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()];
       if (!russianCategoryTitle) {
         const rawTitle = currentCategorySlug.split('-').join(' ');
@@ -106,10 +106,9 @@ export default async function handler(req, res) {
       });
       const catPages = await catResponse.json();
 
+      // ИСПРАВЛЕНО: Если рубрики не существует или она пуста — отдаем системную 404 Vercel вместо текста
       if (!Array.isArray(catPages) || catPages.length === 0) {
-        return res.status(404)
-                  .setHeader('Content-Type', 'text/html; charset=utf-8')
-                  .send(`<h1>404 Рубрика пуста</h1><p>В категории <b>${russianCategoryTitle}</b> пока нет материалов.</p>`);
+        return res.status(404).end();
       }
 
       let categoryHtml = `<!DOCTYPE html>
@@ -130,7 +129,6 @@ export default async function handler(req, res) {
     </div>
     <main class="category-main">
         <div class="category-header">
-            <!-- УБРАНО СЛОВО "РУБРИКА:" — ЧИСТЫЙ КРАСИВЫЙ ЗАГОЛОВОК -->
             <h1>${russianCategoryTitle}</h1>
             <p>Список опубликованных материалов в данном разделе сайта.</p>
         </div>
@@ -138,7 +136,7 @@ export default async function handler(req, res) {
 
       catPages.forEach(page => {
         let title = 'Читать статью';
-        let description = 'Разбираем особенности, даем практические советы и инструкции в детальном обзоре...';
+        let description = 'Разбираем особенности, даем practical советы и инструкции в детальном обзоре...';
         
         const html = page.html_content || '';
 
@@ -154,7 +152,6 @@ export default async function handler(req, res) {
           if (matchP && matchP[1]) {
             const cleanP = matchP[1].replace(/<[^>]*>/g, '').trim();
             if (cleanP.length > 10) {
-              // Умная обрезка строго по точке
               if (cleanP.length > 190) {
                 const subStr = cleanP.substring(0, 190);
                 const lastDotIndex = subStr.lastIndexOf('.');
@@ -192,14 +189,14 @@ export default async function handler(req, res) {
                 .send(categoryHtml);
     }
 
-    // Если это путь без .html (папка вроде /avtomobil), отдаем жесткую 404
+    // Если это путь без .html (папка вроде /avtomobil), отдаем системную 404 Vercel
     if (!urlPath.includes('.') && urlPath !== '/') {
-      return res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8').send('<h1>404 Not Found</h1>');
+      return res.status(404).end();
     }
 
     // 4. ОТДАЧА ОБЫЧНОЙ СТАТЬИ ПОЛЬЗОВАТЕЛЮ
     if (urlPath.includes('.') && !urlPath.endsWith('.html')) {
-      return res.status(404).send('Not found');
+      return res.status(404).end();
     }
 
     const targetUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content`;
@@ -209,10 +206,9 @@ export default async function handler(req, res) {
     });
     const data = await response.json();
 
+    // Если статья не найдена — отдаем системную 404 Vercel
     if (!Array.isArray(data) || data.length === 0) {
-      return res.status(404)
-                .setHeader('Content-Type', 'text/html; charset=utf-8')
-                .send('<h1>404 Страница не найдена</h1><p>Этого URL еще нет в базе Supabase.</p>');
+      return res.status(404).end();
     }
 
     const htmlContent = data[0].html_content;
