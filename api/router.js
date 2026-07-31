@@ -108,10 +108,27 @@ export default async function handler(req, res) {
                 .send(siteCss);
     }
 
-      // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
+       // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
   if (urlPath.startsWith('/category/')) {
-    // Вырезаем базовый слаг категории (удаляем префикс и возможные хвосты /page/X)
-    let currentCategorySlug = urlPath.replace('/category/', '').split('/')[0];
+    // Безопасно очищаем путь от лишних слэшей на конце
+    let cleanPath = urlPath;
+    if (cleanPath.endsWith('/')) {
+      cleanPath = cleanPath.slice(0, -1);
+    }
+
+    // Извлекаем слаг категории. Пример: "/category/avtomobil/page/2" -> "avtomobil"
+    let currentCategorySlug = cleanPath.replace('/category/', '');
+    
+    // Переменная для хранения страницы
+    const PAGE_SIZE = 20; 
+    let page = 1;
+
+    // Если в пути есть конструкция /page/X, вырезаем её номер и очищаем слаг категории
+    if (cleanPath.includes('/page/')) {
+      const parts = cleanPath.split('/page/');
+      currentCategorySlug = parts[0].replace('/category/', '');
+      page = parseInt(parts[1]) || 1;
+    }
 
     if (!currentCategorySlug) {
       return sendVercel404();
@@ -128,20 +145,6 @@ export default async function handler(req, res) {
     if (!russianCategoryTitle) {
       const rawTitle = currentCategorySlug.split('-').join(' ');
       russianCategoryTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1).toLowerCase();
-    }
-
-    // Настройка пагинации (выводим по 20 статей)
-    const PAGE_SIZE = 20; 
-    let page = 1;
-
-    // Пытаемся получить страницу из ЧПУ пути (/page/2) через регулярное выражение Vercel или напрямую из req.url
-    const pageRouteMatch = urlPath.match(/\/page\/(\d+)/i);
-    if (pageRouteMatch && pageRouteMatch[1]) {
-      page = parseInt(pageRouteMatch[1]);
-    } else {
-      // Резервный вариант считывания из ?page=X (на случай старых переходов)
-      const urlObj = new URL(req.url, `http://${currentDomain}`);
-      page = parseInt(urlObj.searchParams.get('page')) || 1;
     }
 
     const offset = (page - 1) * PAGE_SIZE;
@@ -165,7 +168,7 @@ export default async function handler(req, res) {
     const contentRange = catResponse.headers.get('content-range') || '';
     const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
-    // Сборка HTML-шаблона строго под селекторы вашего CSS-файла
+    // Сборка шаблона: УБРАН текст "(Всего материалов: 71)"
     let categoryHtml = `<!DOCTYPE html><html lang="ru">
     <head>
       <meta charset="UTF-8">
@@ -193,16 +196,13 @@ export default async function handler(req, res) {
         <div class="cat-hero">
           <span>🛠</span>
           <h1>${russianCategoryTitle}</h1>
-          <p>Список опубликованных материалов в данном разделе сайта.</p> 
         </div>
         
         <div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
-    // Безопасный перебор карточек с извлечением текста предложений
     catPages.forEach((pageItem, index) => {
       const html = pageItem.html_content || '';
       
-      // 1. Извлекаем заголовок из H1
       let title = '';
       if (html.includes('<h1')) {
         const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
@@ -215,7 +215,6 @@ export default async function handler(req, res) {
         title = `Полезный материал №${globalIndex}`;
       }
 
-      // 2. Извлекаем анонс из первого P (чистый срез по слову без лишних знаков в конце)
       let description = '';
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
@@ -261,13 +260,13 @@ export default async function handler(req, res) {
 
     categoryHtml += `</div>`; // Закрываем .cat-list
 
-    // Блок постраничной навигации в формате /category/avtomobil/page/X/
+    // Блок ЧПУ-пагинации: генерирует ссылки вида /category/avtomobil/page/2/
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
     if (totalPages > 1) {
       categoryHtml += `<div class="pagination" style="display: flex; gap: 8px; margin-top: 30px; justify-content: center;">`;
       for (let i = 1; i <= totalPages; i++) {
         const isActive = i === page;
-        // Генерируем красивую ЧПУ ссылку вместо query параметра
+        // Первая страница ведет на корень категории, остальные — на /page/i/
         const pageUrl = i === 1 ? `/category/${currentCategorySlug}/` : `/category/${currentCategorySlug}/page/${i}/`;
         categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
       }
@@ -277,8 +276,6 @@ export default async function handler(req, res) {
     categoryHtml += `</main></body></html>`;
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
   }
-
-
 
 
     // Если это путь без расширения и не главная, отдаем Vercel 404
