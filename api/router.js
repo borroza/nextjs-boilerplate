@@ -108,7 +108,7 @@ export default async function handler(req, res) {
                 .send(siteCss);
     }
 
-       // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
+        // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
   if (urlPath.startsWith('/category/')) {
     // Безопасно очищаем путь от лишних слэшей на конце
     let cleanPath = urlPath;
@@ -116,23 +116,24 @@ export default async function handler(req, res) {
       cleanPath = cleanPath.slice(0, -1);
     }
 
-    // Извлекаем слаг категории. Пример: "/category/avtomobil/page/2" -> "avtomobil"
+    // Переменные для хранения слага и страницы по умолчанию
     let currentCategorySlug = cleanPath.replace('/category/', '');
-    
-    // Переменная для хранения страницы
     const PAGE_SIZE = 20; 
     let page = 1;
 
-    // Если в пути есть конструкция /page/X, вырезаем её номер и очищаем слаг категории
+    // Если в пути есть ЧПУ-конструкция /page/X, извлекаем её данные правильно
     if (cleanPath.includes('/page/')) {
       const parts = cleanPath.split('/page/');
+      // ИСПРАВЛЕНО: берём первый элемент массива строк parts[0]
       currentCategorySlug = parts[0].replace('/category/', '');
+      // ИСПРАВЛЕНО: берём второй элемент массива строк parts[1]
       page = parseInt(parts[1]) || 1;
     }
 
     if (!currentCategorySlug) {
       return sendVercel404();
     }
+
 
     const categoryTitles = {
       'avtomobil': 'Автомобили',
