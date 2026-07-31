@@ -204,7 +204,7 @@ export default async function handler(req, res) {
         title = `Полезный material №${globalIndex}`;
       }
 
-           // 2. Извлекаем анонс из первого P и берем только законченные предложения
+               // 2. Извлекаем анонс из первого P (чистый срез по слову без лишних знаков в конце)
       let description = '';
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
@@ -212,40 +212,36 @@ export default async function handler(req, res) {
           const cleanP = String(matchP[1]).replace(/<[^>]*>/g, '').trim();
           
           if (cleanP.length > 15) {
-            // Разбиваем текст на массив предложений по точкам, вопросам и восклицаниям
-            // Учитываем, что после знака может идти пробел, кавычка или скобка
-            const sentences = cleanP.match(/[^.!?…]+[.!?…]+[»"'\)]*\s*/g);
-            
-            if (sentences && sentences.length > 0) {
-              let accumulated = '';
-              // Собираем предложения, пока общая длина не превысит 170 символов
-              for (const sentence of sentences) {
-                if ((accumulated + sentence).length <= 210) {
-                  accumulated += sentence;
-                } else {
-                  // Если даже первое предложение гигантское, берем его и аккуратно подожмем
-                  if (accumulated === '') {
-                    accumulated = sentence.substring(0, 180);
-                    const lastSpace = accumulated.lastIndexOf(' ');
-                    accumulated = (lastSpace > 40 ? accumulated.substring(0, lastSpace) : accumulated) + '...';
-                  }
-                  break;
-                }
+            if (cleanP.length > 170) {
+              let subStr = cleanP.substring(0, 170);
+              
+              // Ищем полноценный конец предложения (. ! ?)
+              const lastDot = subStr.lastIndexOf('.');
+              const lastExcl = subStr.lastIndexOf('!');
+              const lastQuest = subStr.lastIndexOf('?');
+              const lastSign = Math.max(lastDot, lastExcl, lastQuest);
+
+              if (lastSign > 40) {
+                // Если предложение завершилось в пределах лимита — берем его целиком со знаком
+                description = subStr.substring(0, lastSign + 1).trim();
+              } else {
+                // Если мысль длинная, аккуратно режем по последнему пробелу
+                const lastSpace = subStr.lastIndexOf(' ');
+                // Текст просто заканчивается словом. Никаких точек или многоточий не добавляем!
+                description = lastSpace > 40 ? subStr.substring(0, lastSpace).trim() : subStr.trim();
               }
-              description = accumulated.trim();
             } else {
-              // Резервный срез по пробелу, если регулярка не смогла разбить
-              const subStr = cleanP.substring(0, 180);
-              const lastSpace = subStr.lastIndexOf(' ');
-              description = (lastSpace > 40 ? subStr.substring(0, lastSpace) : subStr) + '...';
+              // Если текст изначально короткий, выводим как есть
+              description = cleanP;
             }
           }
         }
       }
 
       if (!description) {
-        description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.';
+        description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре';
       }
+
 
 
       const fixedPath = pageItem.url_path.startsWith('/') ? pageItem.url_path : `/${pageItem.url_path}`;
