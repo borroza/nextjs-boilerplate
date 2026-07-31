@@ -108,23 +108,25 @@ export default async function handler(req, res) {
                 .send(siteCss);
     }
 
-         // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
+        // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
   if (urlPath.startsWith('/category/')) {
-    // Регулярное выражение, которое вытаскивает слаг категории и номер страницы из любого ЧПУ вида
-    // /category/avtomobil или /category/avtomobil/page/2
     const match = urlPath.match(/^\/category\/([^\/]+)(?:\/page\/(\d+))?/i);
     
     if (!match) {
       return sendVercel404();
     }
 
-    let currentCategorySlug = match[1]; // Это всегда чистый слаг (например, avtomobil)
-    let page = match[2] ? parseInt(match[2]) : 1; // Номер страницы, либо 1 по умолчанию
+    // Безопасное извлечение слага и страницы через деструктуризацию массива
+    const [, categorySlug, pageNum] = match;
+    
+    let currentCategorySlug = categorySlug; 
+    let page = pageNum ? parseInt(pageNum) : 1; 
     const PAGE_SIZE = 20;
 
     if (!currentCategorySlug) {
       return sendVercel404();
     }
+
 
 
 
