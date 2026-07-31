@@ -223,7 +223,24 @@ export default async function handler(req, res) {
         title = `Полезный материал №${globalIndex}`;
       }
 
-      // 2. БЕЗОПАСНО ИЩЕМ ТЕКСТ ДЛЯ АНОНСА И СТРОГО ПРОВЕРЯЕМ СТРОКУ
+         // Полностью стабильный цикл с гарантированной обрезкой по знакам препинания
+    catPages.forEach((page, index) => {
+      const html = page.html_content || '';
+      
+      // 1. БЕЗОПАСНО ИЩЕМ ЗАГОЛОВОК СТАТЬИ
+      let title = '';
+      if (html.includes('<h1')) {
+        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+        if (matchH1 && matchH1[1]) {
+          title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim();
+        }
+      }
+      if (!title) {
+        const globalIndex = offset + index + 1;
+        title = `Полезный материал №${globalIndex}`;
+      }
+
+      // 2. БЕЗОПАСНО ИЩЕМ ТЕКСТ ДЛЯ АНОНСА И СТРОГО ОБРЕЗАЕМ ПО ТОЧКЕ
       let description = '';
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
@@ -232,30 +249,44 @@ export default async function handler(req, res) {
           
           if (cleanP.length > 15) {
             if (cleanP.length > 180) {
-              const subStr = cleanP.substring(0, 240);
+              // Берем строку с небольшим запасом
+              const subStr = cleanP.substring(0, 220);
               
-              // Ищем концы предложений со всеми знаками
-              const matches = [...subStr.matchAll(/[\.\!\?…]+[»"'\)]*/g)];
+              // Ищем позиции последних возможных окончаний предложений
+              const lastDot = subStr.lastIndexOf('.');
+              const lastExcl = subStr.lastIndexOf('!');
+              const lastQuest = subStr.lastIndexOf('?');
+              const lastEllipsis = subStr.lastIndexOf('…');
               
-              let lastValidEnd = -1;
-              for (const m of matches) {
-                if (m.index !== undefined && m.index > 40 && m.index <= 210) {
-                  lastValidEnd = m.index + m.length;
+              // Находим самый крайний знак препинания в этой строке
+              let lastValidEnd = Math.max(lastDot, lastExcl, lastQuest, lastEllipsis);
+
+              // Проверяем, не захватили ли мы кавычку или скобку после этого знака
+              if (lastValidEnd > 40 && lastValidEnd < subStr.length - 1) {
+                const nextChar = subStr.charAt(lastValidEnd + 1);
+                if (['»', '"', ')', ']'].includes(nextChar)) {
+                  lastValidEnd += 1;
                 }
               }
 
+              // Если знак препинания найден в разумных пределах — режем по нему
               if (lastValidEnd > 40) {
-                description = subStr.substring(0, lastValidEnd).trim();
+                description = subStr.substring(0, lastValidEnd + 1).trim();
               } else {
+                // Если знаков нет, аккуратно режем по пробелу, чтобы не рвать слово
                 const lastSpace = subStr.substring(0, 180).lastIndexOf(' ');
                 description = (lastSpace > 40 ? subStr.substring(0, lastSpace) : subStr.substring(0, 180)) + '...';
               }
             } else {
-              description = /[\.\!\?…»"'\)]$/.test(cleanP) ? cleanP : cleanP + '.';
+              // Если текст изначально короткий, проверяем знак препинания на конце
+              const lastChar = cleanP.slice(-1);
+              description = ['.', '!', '?', '…', '»', '"', ')'].includes(lastChar) ? cleanP : cleanP + '.';
             }
           }
         }
       }
+
+      // Резервный анонс на самый крайний случай (гарантирует, что переменная определена)
       if (!description) {
         description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.';
       }
@@ -272,9 +303,6 @@ export default async function handler(req, res) {
         </article>`;
     });
 
-
-
-      const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
       
       categoryHtml += `
         <article class="article-card">
