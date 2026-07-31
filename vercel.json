@@ -4,7 +4,7 @@
     { "source": "/robots.txt", "destination": "/api/router?type=robots" },
     { "source": "/sitemap.xml", "destination": "/api/router?type=sitemap" },
     { 
-      "source": "/((?!api/|_next/|static/|robots\\.txt|sitemap\\.xml).* )", 
+      "source": "/((?!api/|_next/|static/|robots\\.txt|sitemap\\.xml).*)", 
       "destination": "/api/router" 
     }
   ]
