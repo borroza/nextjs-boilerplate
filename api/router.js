@@ -108,12 +108,10 @@ export default async function handler(req, res) {
                 .send(siteCss);
     }
 
-          // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
+         // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
   if (urlPath.startsWith('/category/')) {
-    // Делаем копию пути для обработки
     let targetPath = urlPath;
     
-    // Удаляем слэш на конце, если он есть
     if (targetPath.endsWith('/')) {
       targetPath = targetPath.slice(0, -1);
     }
@@ -122,11 +120,11 @@ export default async function handler(req, res) {
     const PAGE_SIZE = 20;
     let page = 1;
 
-    // Если адрес содержит структуру пагинации /page/
     if (targetPath.indexOf('/page/') !== -1) {
       const parts = targetPath.split('/page/');
-      const firstPart = parts[0]; // Индекс 0 - забираем чистый слаг
-      const secondPart = parts[1]; // Индекс 1 - забираем номер страницы
+      // Используем безопасный метод .at() вместо квадратных скобок, чтобы гитхаб и чат ничего не стерли
+      const firstPart = parts.at(0); 
+      const secondPart = parts.at(1);
       
       currentCategorySlug = firstPart.replace('/category/', '');
       page = parseInt(secondPart) || 1;
@@ -168,9 +166,8 @@ export default async function handler(req, res) {
     }
 
     const contentRange = catResponse.headers.get('content-range') || '';
-    const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
+    const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')) : catPages.length;
 
-    // Сборка шаблона: УБРАН текст "(Всего материалов: 71)"
     let categoryHtml = `<!DOCTYPE html><html lang="ru">
     <head>
       <meta charset="UTF-8">
@@ -208,8 +205,8 @@ export default async function handler(req, res) {
       let title = '';
       if (html.includes('<h1')) {
         const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-        if (matchH1 && matchH1[1]) {
-          title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim();
+        if (matchH1 && matchH1) {
+          title = String(matchH1).replace(/<[^>]*>/g, '').trim();
         }
       }
       if (!title) {
@@ -220,8 +217,8 @@ export default async function handler(req, res) {
       let description = '';
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-        if (matchP && matchP[1]) {
-          const cleanP = String(matchP[1]).replace(/<[^>]*>/g, '').trim();
+        if (matchP && matchP) {
+          const cleanP = String(matchP).replace(/<[^>]*>/g, '').trim();
           
           if (cleanP.length > 15) {
             if (cleanP.length > 300) {
@@ -260,25 +257,29 @@ export default async function handler(req, res) {
         </article>`;
     });
 
-    categoryHtml += `</div>`; // Закрываем .cat-list
+    categoryHtml += `</div>`;
 
-    // Блок ЧПУ-пагинации: генерирует ссылки вида /category/avtomobil/page/2/
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
     if (totalPages > 1) {
       categoryHtml += `<div class="pagination" style="display: flex; gap: 8px; margin-top: 30px; justify-content: center;">`;
       for (let i = 1; i <= totalPages; i++) {
         const isActive = i === page;
         const pageUrl = i === 1 ? `/category/${currentCategorySlug}/` : `/category/${currentCategorySlug}/page/${i}/`;
-        categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
+        
+        // Полностью избавились от внутренних одинарных кавычек, чтобы исключить SyntaxError
+        if (isActive) {
+          categoryHtml += `<a href="${pageUrl}" class="is-active">${i}</a>`;
+        } else {
+          categoryHtml += `<a href="${pageUrl}">${i}</a>`;
+        }
       }
       categoryHtml += `</div>`;
     }
 
     categoryHtml += `</main></body></html>`;
-    
-    // ВАЖНО: Возвращаем ответ и прерываем функцию, чтобы код не шел к строке 282!
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
   }
+
 
 
 
