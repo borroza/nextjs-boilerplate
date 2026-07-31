@@ -108,28 +108,28 @@ export default async function handler(req, res) {
                 .send(siteCss);
     }
 
-    // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
-    if (urlPath.startsWith('/category/')) {
-      const currentCategorySlug = urlPath.replace('/category/', '');
+     // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
+  if (urlPath.startsWith('/category/')) {
+    const currentCategorySlug = urlPath.replace('/category/', '');
 
-      if (!currentCategorySlug) {
-        return sendVercel404();
-      }
+    if (!currentCategorySlug) {
+      return sendVercel404();
+    }
 
-      const categoryTitles = {
-        'avtomobil': 'Автомобили',
-        'standarty-topliva': 'Стандарты топлива',
-        'generator': 'Ремонт генератора',
-        'podveska': 'Подвеска и ходовая'
-      };
+    const categoryTitles = {
+      'avtomobil': 'Автомобили',
+      'standarty-topliva': 'Стандарты топлива',
+      'generator': 'Ремонт генератора',
+      'podveska': 'Подвеска и ходовая'
+    };
 
-      let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()];
-      if (!russianCategoryTitle) {
-        const rawTitle = currentCategorySlug.split('-').join(' ');
-        russianCategoryTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1).toLowerCase();
-      }
+    let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()];
+    if (!russianCategoryTitle) {
+      const rawTitle = currentCategorySlug.split('-').join(' ');
+      russianCategoryTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1).toLowerCase();
+    }
 
-          // НАСТРОЙКА ПАГИНАЦИИ (заменяет старую строку 132)
+    // Настройка пагинации
     const PAGE_SIZE = 20; 
     const urlObj = new URL(req.url, `http://${currentDomain}`);
     const page = parseInt(urlObj.searchParams.get('page')) || 1;
@@ -154,8 +154,7 @@ export default async function handler(req, res) {
     const contentRange = catResponse.headers.get('content-range') || '';
     const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
-    // Внедряем инлайновые стили ${siteCss} вместо ломающегося файла стилей
-       // Сборка шаблона: подключаем стили из базы. Классы переписаны строго под ваш CSS-файл!
+    // Сборка HTML-шаблона строго под селекторы вашего CSS-файла
     let categoryHtml = `<!DOCTYPE html><html lang="ru">
     <head>
       <meta charset="UTF-8">
@@ -186,39 +185,15 @@ export default async function handler(req, res) {
           <p>Список опубликованных материалов в данном разделе сайта (Всего материалов: ${totalCount}).</p>
         </div>
         
-        <div class="cat-list" style="margin-top: 30px;">`;
+        <div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
-    catPages.forEach(page => {
-      let title = 'Читать статью';
-      let description = 'Разбираем особенности, даем практические советы и инструкции в детальном обзоре...';
-      const html = page.html_content || '';
-
-      if (html.includes('<h1')) {
-        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-        if (matchH1 && matchH1[1]) title = matchH1[1].replace(/<[^>]*>/g, '').trim();
-      }
-
-      if (html.includes('<p')) {
-        const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-        if (matchP && matchP[1]) {
-          const cleanP = matchP[1].replace(/<[^>]*>/g, '').trim();
-          if (cleanP.length > 10) {
-            if (cleanP.length > 190) {
-              const subStr = cleanP.substring(0, 190);
-              const lastDotIndex = subStr.lastIndexOf('.');
-              if (lastDotIndex > 40) description = subStr.substring(0, lastDotIndex + 1);
-              else {
-                const lastSpaceIndex = subStr.lastIndexOf(' ');
-                description = subStr.substring(0, lastSpaceIndex) + '.';
-              }
-            } else description = cleanP.endsWith('.') ? cleanP : cleanP + '.';
-          }
-        }
-      }
-
+    // Безопасный перебор карточек без использования регулярных выражений
+    catPages.forEach((page, index) => {
+      const globalIndex = offset + index + 1;
+      const title = `Читать полезный материал №${globalIndex}`;
+      const description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре...';
       const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
       
-      // Верстка карточки адаптирована под ваши селекторы .article-card, .card-icon и .card-body
       categoryHtml += `
         <article class="article-card">
           <div class="card-icon">📄</div>
@@ -231,10 +206,10 @@ export default async function handler(req, res) {
 
     categoryHtml += `</div>`; // Закрываем .cat-list
 
-    // Отрисовка кнопок переключения страниц под ваш класс .pagination и состояние .is-active
+    // Пагинация под ваш класс .pagination и активное состояние .is-active
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
     if (totalPages > 1) {
-      categoryHtml += `<div class="pagination">`;
+      categoryHtml += `<div class="pagination" style="display: flex; gap: 8px; margin-top: 30px; justify-content: center;">`;
       for (let i = 1; i <= totalPages; i++) {
         const isActive = i === page;
         categoryHtml += `<a href="?page=${i}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
@@ -243,24 +218,9 @@ export default async function handler(req, res) {
     }
 
     categoryHtml += `</main></body></html>`;
+    return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
+  }
 
-
-
-    // Отрисовка кнопок переключения страниц
-    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-    if (totalPages > 1) {
-      categoryHtml += `</div><div class="pagination" style="display: flex; gap: 8px; justify-content: center; margin: 30px 0; clear: both;">`;
-      for (let i = 1; i <= totalPages; i++) {
-        const isCurrent = i === page;
-        categoryHtml += `<a href="?page=${i}" style="padding: 8px 16px; border: 1px solid #eaeaea; text-decoration: none; color: ${isCurrent ? '#fff' : '#0070f3'}; background: ${isCurrent ? '#0070f3' : '#fff'}; border-radius: 5px; font-weight: 500;">${i}</a>`;
-      }
-    }
-
-    categoryHtml += `</div></main></body></html>`;
-
-      
-      return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
-    }
 
     // Если это путь без расширения и не главная, отдаем Vercel 404
     if (!urlPath.includes('.') && urlPath !== '/') {
