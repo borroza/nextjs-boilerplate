@@ -129,52 +129,79 @@ export default async function handler(req, res) {
         russianCategoryTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1).toLowerCase();
       }
 
-      const categoryPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategorySlug)}&select=url_path,html_content`;
-      const catResponse = await fetch(categoryPagesUrl, {
-        method: 'GET',
-        headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-      });
-      const catPages = await catResponse.json();
+          // НАСТРОЙКА ПАГИНАЦИИ (заменяет старую строку 132)
+    const PAGE_SIZE = 20; 
+    const urlObj = new URL(req.url, `http://${currentDomain}`);
+    const page = parseInt(urlObj.searchParams.get('page')) || 1;
+    const offset = (page - 1) * PAGE_SIZE;
 
-      if (!Array.isArray(catPages) || catPages.length === 0) {
-        return sendVercel404();
+    const categoryPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategorySlug)}&select=url_path,html_content&limit=${PAGE_SIZE}&offset=${offset}`;
+    
+    const catResponse = await fetch(categoryPagesUrl, {
+      method: 'GET',
+      headers: { 
+        'apikey': supabaseKey, 
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Prefer': 'count=exact' 
+      }
+    });
+    const catPages = await catResponse.json();
+
+    if (!Array.isArray(catPages) || catPages.length === 0) {
+      return sendVercel404();
+    }
+
+    const contentRange = catResponse.headers.get('content-range') || '';
+    const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
+
+    // Внедряем инлайновые стили ${siteCss} вместо ломающегося файла стилей
+    let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title><style>${siteCss}</style></head><body><header class="site-header"><div class="nav-container"><a href="/" class="logo"><span>${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><a href="/">Главная</a> / <span>${russianCategoryTitle}</span></div><main class="category-main"><div class="category-header"><h1>${russianCategoryTitle}</h1><p>Список опубликованных материалов в данном разделе сайта (Всего: ${totalCount}).</p></div><div class="articles-grid">`;
+
+    catPages.forEach(page => {
+      let title = 'Читать статью';
+      let description = 'Разбираем особенности, даем практические советы и инструкции в детальном обзоре...';
+      const html = page.html_content || '';
+
+      if (html.includes('<h1')) {
+        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+        if (matchH1 && matchH1[1]) title = matchH1[1].replace(/<[^>]*>/g, '').trim();
       }
 
-      let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css"></head><body><header class="site-header"><div class="nav-container"><a href="/" class="logo"><span>${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><a href="/">Главная</a> / <span>${russianCategoryTitle}</span></div><main class="category-main"><div class="category-header"><h1>${russianCategoryTitle}</h1><p>Список опубликованных материалов в данном разделе сайта.</p></div><div class="articles-grid">`;
-
-      catPages.forEach(page => {
-        let title = 'Читать статью';
-        let description = 'Разбираем особенности, даем практические советы и инструкции в детальном обзоре...';
-        const html = page.html_content || '';
-
-        if (html.includes('<h1')) {
-          const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-          if (matchH1 && matchH1[1]) title = matchH1[1].replace(/<[^>]*>/g, '').trim();
-        }
-
-        if (html.includes('<p')) {
-          const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-          if (matchP && matchP[1]) {
-            const cleanP = matchP[1].replace(/<[^>]*>/g, '').trim();
-            if (cleanP.length > 10) {
-              if (cleanP.length > 190) {
-                const subStr = cleanP.substring(0, 190);
-                const lastDotIndex = subStr.lastIndexOf('.');
-                if (lastDotIndex > 40) description = subStr.substring(0, lastDotIndex + 1);
-                else {
-                  const lastSpaceIndex = subStr.lastIndexOf(' ');
-                  description = subStr.substring(0, lastSpaceIndex) + '.';
-                }
-              } else description = cleanP.endsWith('.') ? cleanP : cleanP + '.';
-            }
+      if (html.includes('<p')) {
+        const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+        if (matchP && matchP[1]) {
+          const cleanP = matchP[1].replace(/<[^>]*>/g, '').trim();
+          if (cleanP.length > 10) {
+            if (cleanP.length > 190) {
+              const subStr = cleanP.substring(0, 190);
+              const lastDotIndex = subStr.lastIndexOf('.');
+              if (lastDotIndex > 40) description = subStr.substring(0, lastDotIndex + 1);
+              else {
+                const lastSpaceIndex = subStr.lastIndexOf(' ');
+                description = subStr.substring(0, lastSpaceIndex) + '.';
+              }
+            } else description = cleanP.endsWith('.') ? cleanP : cleanP + '.';
           }
         }
+      }
 
-        const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
-        categoryHtml += `<article class="article-card"><h2 class="card-title"><a href="${fixedPath}">${title}</a></h2><p class="card-description">${description}</p></article>`;
-      });
+      const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
+      categoryHtml += `<article class="article-card"><h2 class="card-title"><a href="${fixedPath}">${title}</a></h2><p class="card-description">${description}</p></article>`;
+    });
 
-      categoryHtml += `</div></main></body></html>`;
+    // Отрисовка кнопок переключения страниц
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+    if (totalPages > 1) {
+      categoryHtml += `</div><div class="pagination" style="display: flex; gap: 8px; justify-content: center; margin: 30px 0; clear: both;">`;
+      for (let i = 1; i <= totalPages; i++) {
+        const isCurrent = i === page;
+        categoryHtml += `<a href="?page=${i}" style="padding: 8px 16px; border: 1px solid #eaeaea; text-decoration: none; color: ${isCurrent ? '#fff' : '#0070f3'}; background: ${isCurrent ? '#0070f3' : '#fff'}; border-radius: 5px; font-weight: 500;">${i}</a>`;
+      }
+    }
+
+    categoryHtml += `</div></main></body></html>`;
+
+      
       return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
     }
 
