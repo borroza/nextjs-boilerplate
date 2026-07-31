@@ -108,20 +108,29 @@ export default async function handler(req, res) {
                 .send(siteCss);
     }
 
-        // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
+          // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
   if (urlPath.startsWith('/category/')) {
-    const match = urlPath.match(/^\/category\/([^\/]+)(?:\/page\/(\d+))?/i);
+    // Делаем копию пути для обработки
+    let targetPath = urlPath;
     
-    if (!match) {
-      return sendVercel404();
+    // Удаляем слэш на конце, если он есть
+    if (targetPath.endsWith('/')) {
+      targetPath = targetPath.slice(0, -1);
     }
 
-    // Безопасное извлечение слага и страницы через деструктуризацию массива
-    const [, categorySlug, pageNum] = match;
-    
-    let currentCategorySlug = categorySlug; 
-    let page = pageNum ? parseInt(pageNum) : 1; 
+    let currentCategorySlug = targetPath.replace('/category/', '');
     const PAGE_SIZE = 20;
+    let page = 1;
+
+    // Если адрес содержит структуру пагинации /page/
+    if (targetPath.indexOf('/page/') !== -1) {
+      const parts = targetPath.split('/page/');
+      const firstPart = parts[0];
+      const secondPart = parts[1];
+      
+      currentCategorySlug = firstPart.replace('/category/', '');
+      page = parseInt(secondPart) || 1;
+    }
 
     if (!currentCategorySlug) {
       return sendVercel404();
