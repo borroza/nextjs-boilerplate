@@ -157,7 +157,7 @@ export default async function handler(req, res) {
     // Внедряем инлайновые стили ${siteCss} вместо ломающегося файла стилей
     let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title><style>${siteCss}</style></head><body><header class="site-header"><div class="nav-container"><a href="/" class="logo"><span>${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><a href="/">Главная</a> / <span>${russianCategoryTitle}</span></div><main class="category-main"><div class="category-header"><h1>${russianCategoryTitle}</h1><p>Список опубликованных материалов в данном разделе сайта (Всего: ${totalCount}).</p></div><div class="articles-grid">`;
 
-    catPages.forEach(page => {
+        catPages.forEach(page => {
       let title = 'Читать статью';
       let description = 'Разбираем особенности, даем практические советы и инструкции в детальном обзоре...';
       const html = page.html_content || '';
