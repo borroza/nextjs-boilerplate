@@ -155,7 +155,38 @@ export default async function handler(req, res) {
     const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
     // Внедряем инлайновые стили ${siteCss} вместо ломающегося файла стилей
-    let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title><style>${siteCss}</style></head><body><header class="site-header"><div class="nav-container"><a href="/" class="logo"><span>${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><a href="/">Главная</a> / <span>${russianCategoryTitle}</span></div><main class="category-main"><div class="category-header"><h1>${russianCategoryTitle}</h1><p>Список опубликованных материалов в данном разделе сайта (Всего: ${totalCount}).</p></div><div class="articles-grid">`;
+       // Сборка шаблона: подключаем стили из базы. Классы переписаны строго под ваш CSS-файл!
+    let categoryHtml = `<!DOCTYPE html><html lang="ru">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${russianCategoryTitle} | ${siteTitle}</title>
+      <style>${siteCss}</style>
+    </head>
+    <body>
+      <div class="topbar"></div>
+      <header class="site-header">
+        <div class="container header-inner">
+          <a href="/" class="logo">
+            <span class="logo-icon">${siteIcon}</span> ${siteTitle}
+          </a>
+        </div>
+      </header>
+      
+      <div class="breadcrumbs">
+        <div class="container">
+          <a href="/">Главная</a> <strong>/</strong> <strong>${russianCategoryTitle}</strong>
+        </div>
+      </div>
+      
+      <main class="container" style="padding: 40px 0;">
+        <div class="cat-hero">
+          <span>🛠</span>
+          <h1>${russianCategoryTitle}</h1>
+          <p>Список опубликованных материалов в данном разделе сайта (Всего материалов: ${totalCount}).</p>
+        </div>
+        
+        <div class="cat-list" style="margin-top: 30px;">`;
 
     catPages.forEach(page => {
       let title = 'Читать статью';
@@ -164,22 +195,13 @@ export default async function handler(req, res) {
 
       if (html.includes('<h1')) {
         const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-        // ИСПРАВЛЕНО: берем группу [1] и проверяем, что это строка
-        if (matchH1 && matchH1[1]) {
-          title = typeof matchH1[1].replace === 'function' 
-            ? matchH1[1].replace(/<[^>]*>/g, '').trim() 
-            : String(matchH1[1]).trim();
-        }
+        if (matchH1 && matchH1[1]) title = matchH1[1].replace(/<[^>]*>/g, '').trim();
       }
 
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-        // ИСПРАВЛЕНО: берем группу [1] и проверяем, что это строка
         if (matchP && matchP[1]) {
-          const cleanP = typeof matchP[1].replace === 'function'
-            ? matchP[1].replace(/<[^>]*>/g, '').trim()
-            : String(matchP[1]).trim();
-
+          const cleanP = matchP[1].replace(/<[^>]*>/g, '').trim();
           if (cleanP.length > 10) {
             if (cleanP.length > 190) {
               const subStr = cleanP.substring(0, 190);
@@ -195,8 +217,33 @@ export default async function handler(req, res) {
       }
 
       const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
-      categoryHtml += `<article class="article-card"><h2 class="card-title"><a href="${fixedPath}">${title}</a></h2><p class="card-description">${description}</p></article>`;
+      
+      // Верстка карточки адаптирована под ваши селекторы .article-card, .card-icon и .card-body
+      categoryHtml += `
+        <article class="article-card">
+          <div class="card-icon">📄</div>
+          <div class="card-body">
+            <h2 style="margin:0 0 6px; font-size:20px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2>
+            <p style="margin:0; color:var(--muted); font-size:14px; line-height:1.5;">${description}</p>
+          </div>
+        </article>`;
     });
+
+    categoryHtml += `</div>`; // Закрываем .cat-list
+
+    // Отрисовка кнопок переключения страниц под ваш класс .pagination и состояние .is-active
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+    if (totalPages > 1) {
+      categoryHtml += `<div class="pagination">`;
+      for (let i = 1; i <= totalPages; i++) {
+        const isActive = i === page;
+        categoryHtml += `<a href="?page=${i}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
+      }
+      categoryHtml += `</div>`;
+    }
+
+    categoryHtml += `</main></body></html>`;
+
 
 
     // Отрисовка кнопок переключения страниц
