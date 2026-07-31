@@ -4,13 +4,8 @@
     { "source": "/robots.txt", "destination": "/api/router?type=robots" },
     { "source": "/sitemap.xml", "destination": "/api/router?type=sitemap" },
     { 
-      "source": "/category/:category_slug/page/:page_num", 
-      "destination": "/api/router?category_slug=:category_slug&page=:page_num" 
-    },
-    { 
       "source": "/((?!api/|_next/|static/|robots\\.txt|sitemap\\.xml).* )", 
       "destination": "/api/router" 
     }
   ]
 }
-
