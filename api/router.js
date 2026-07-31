@@ -108,7 +108,7 @@ export default async function handler(req, res) {
                 .send(siteCss);
     }
 
-         // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
+          // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
   if (urlPath.startsWith('/category/')) {
     let targetPath = urlPath;
     
@@ -120,14 +120,11 @@ export default async function handler(req, res) {
     const PAGE_SIZE = 20;
     let page = 1;
 
-    if (targetPath.indexOf('/page/') !== -1) {
+    // Безопасное ЧПУ-расщепление пути на категорию и страницу
+    if (targetPath.includes('/page/')) {
       const parts = targetPath.split('/page/');
-      // Используем безопасный метод .at() вместо квадратных скобок, чтобы гитхаб и чат ничего не стерли
-      const firstPart = parts.at(0); 
-      const secondPart = parts.at(1);
-      
-      currentCategorySlug = firstPart.replace('/category/', '');
-      page = parseInt(secondPart) || 1;
+      currentCategorySlug = parts[0].replace('/category/', '');
+      page = parseInt(parts[1]) || 1;
     }
 
     if (!currentCategorySlug) {
@@ -166,7 +163,7 @@ export default async function handler(req, res) {
     }
 
     const contentRange = catResponse.headers.get('content-range') || '';
-    const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')) : catPages.length;
+    const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
     let categoryHtml = `<!DOCTYPE html><html lang="ru">
     <head>
@@ -205,8 +202,8 @@ export default async function handler(req, res) {
       let title = '';
       if (html.includes('<h1')) {
         const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-        if (matchH1 && matchH1) {
-          title = String(matchH1).replace(/<[^>]*>/g, '').trim();
+        if (matchH1 && matchH1[1]) {
+          title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim();
         }
       }
       if (!title) {
@@ -217,8 +214,8 @@ export default async function handler(req, res) {
       let description = '';
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-        if (matchP && matchP) {
-          const cleanP = String(matchP).replace(/<[^>]*>/g, '').trim();
+        if (matchP && matchP[1]) {
+          const cleanP = String(matchP[1]).replace(/<[^>]*>/g, '').trim();
           
           if (cleanP.length > 15) {
             if (cleanP.length > 300) {
@@ -266,11 +263,10 @@ export default async function handler(req, res) {
         const isActive = i === page;
         const pageUrl = i === 1 ? `/category/${currentCategorySlug}/` : `/category/${currentCategorySlug}/page/${i}/`;
         
-        // Полностью избавились от внутренних одинарных кавычек, чтобы исключить SyntaxError
         if (isActive) {
-          categoryHtml += `<a href="${pageUrl}" class="is-active">${i}</a>`;
+          categoryHtml += `<a href="\({pageUrl}" class="is-active">\){i}</a>`;
         } else {
-          categoryHtml += `<a href="${pageUrl}">${i}</a>`;
+     categoryHtml += `<a href="${pageUrl}">${i}</a>`;
         }
       }
       categoryHtml += `</div>`;
@@ -279,8 +275,6 @@ export default async function handler(req, res) {
     categoryHtml += `</main></body></html>`;
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
   }
-
-
 
 
     // Если это путь без расширения и не главная, отдаем Vercel 404
