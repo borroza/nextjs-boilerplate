@@ -205,22 +205,51 @@ export default async function handler(req, res) {
         title = `Полезный материал №${globalIndex}`;
       }
 
-      // 2. БЕЗОПАСНО ИЩЕМ ТЕКСТ ДЛЯ АНОНСА (первый абзац)
+           // 2. БЕЗОПАСНО ИЩЕМ ТЕКСТ ДЛЯ АНОНСА (С УЧЕТОМ ВСЕХ ЗНАКОВ, КАВЫЧЕК И СКОБОК)
       let description = '';
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
         if (matchP && matchP[1]) {
           const cleanP = matchP[1].replace(/<[^>]*>/g, '').trim();
+          
           if (cleanP.length > 15) {
-            // Ограничиваем длину анонса, чтобы карточки были аккуратными
-            description = cleanP.length > 180 ? cleanP.substring(0, 180) + '...' : cleanP;
+            if (cleanP.length > 180) {
+              // Берем строку с запасом до 240 символов
+              const subStr = cleanP.substring(0, 240);
+              
+              // Ищем самый последний конец предложения (. ! ? или ...) вместе с возможными кавычками/скобками
+              const regexEnd = /[\.\!\?…]+[»"'\)]*$/;
+              
+              // Находим все знаки препинания в этой строке
+              const matches = [...subStr.matchAll(/[\.\!\?…]+[»"'\)]*/g)];
+              
+              let lastValidEnd = -1;
+              for (const m of matches) {
+                if (m.index !== undefined && m.index > 40 && m.index <= 210) {
+                  lastValidEnd = m.index + m[0].length;
+                }
+              }
+
+              // Если нашли идеальный знак препинания в разумных пределах — режем по нему
+              if (lastValidEnd > 40) {
+                description = subStr.substring(0, lastValidEnd).trim();
+              } else {
+                // Если знаков нет вообще, аккуратно режем по пробелу, чтобы не рвать слово
+                const lastSpace = subStr.substring(0, 180).lastIndexOf(' ');
+                description = (lastSpace > 40 ? subStr.substring(0, lastSpace) : subStr.substring(0, 180)) + '...';
+              }
+            } else {
+              // Если текст короткий, просто берем целиком и добавляем точку, если знака нет
+              description = /[\.\!\?…»"'\)]$/.test(cleanP) ? cleanP : cleanP + '.';
+            }
           }
         }
       }
       // Резервный анонс
       if (!description) {
-        description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре...';
+        description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.';
       }
+
 
       const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
       
