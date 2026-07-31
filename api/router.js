@@ -204,7 +204,7 @@ export default async function handler(req, res) {
         title = `Полезный material №${globalIndex}`;
       }
 
-               // 2. Извлекаем анонс из первого P (чистый срез по слову без лишних знаков в конце)
+                  // 2. Извлекаем анонс из первого P (с увеличенным лимитом до 300 символов)
       let description = '';
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
@@ -212,26 +212,27 @@ export default async function handler(req, res) {
           const cleanP = String(matchP[1]).replace(/<[^>]*>/g, '').trim();
           
           if (cleanP.length > 15) {
-            if (cleanP.length > 170) {
-              let subStr = cleanP.substring(0, 170);
+            // Если текст длиннее 300 символов, ищем точку для красивого среза
+            if (cleanP.length > 300) {
+              // Берем строку с запасом до 350 символов, чтобы найти конец предложения
+              let subStr = cleanP.substring(0, 350);
               
-              // Ищем полноценный конец предложения (. ! ?)
-              const lastDot = subStr.lastIndexOf('.');
-              const lastExcl = subStr.lastIndexOf('!');
-              const lastQuest = subStr.lastIndexOf('?');
+              // Ищем полноценный конец предложения (. ! ?) в пределах расширенной строки
+              const lastDot = subStr.substring(0, 320).lastIndexOf('.');
+              const lastExcl = subStr.substring(0, 320).lastIndexOf('!');
+              const lastQuest = subStr.substring(0, 320).lastIndexOf('?');
               const lastSign = Math.max(lastDot, lastExcl, lastQuest);
 
               if (lastSign > 40) {
-                // Если предложение завершилось в пределах лимита — берем его целиком со знаком
+                // Если предложение завершилось — берем его целиком со знаком препинания
                 description = subStr.substring(0, lastSign + 1).trim();
               } else {
-                // Если мысль длинная, аккуратно режем по последнему пробелу
-                const lastSpace = subStr.lastIndexOf(' ');
-                // Текст просто заканчивается словом. Никаких точек или многоточий не добавляем!
-                description = lastSpace > 40 ? subStr.substring(0, lastSpace).trim() : subStr.trim();
+                // Если предложение всё ещё гигантское, аккуратно режем по пробелу около 300 символов
+                const lastSpace = subStr.substring(0, 300).lastIndexOf(' ');
+                description = lastSpace > 40 ? subStr.substring(0, lastSpace).trim() : subStr.substring(0, 300).trim();
               }
             } else {
-              // Если текст изначально короткий, выводим как есть
+              // Если текст изначально короткий, выводим его полностью как есть
               description = cleanP;
             }
           }
@@ -239,8 +240,9 @@ export default async function handler(req, res) {
       }
 
       if (!description) {
-        description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре';
+        description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.';
       }
+
 
 
 
