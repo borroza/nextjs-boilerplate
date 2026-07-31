@@ -131,12 +131,27 @@ export default async function handler(req, res) {
       return sendVercel404();
     }
 
-    const categoryTitles = {
-      'avtomobil': 'Автомобили',
-      'standarty-topliva': 'Стандарты топлива',
-      'generator': 'Ремонт генератора',
-      'podveska': 'Подвеска и ходовая'
+       const categoryTitles = {
+      'avtomobil': 'Автомобиль',
+      'avtoelektrik': 'Автоэлектрик',
+      'antifriz': 'Антифриз',
+      'bamper': 'Бампер',
+      'generator': 'Генератор',
+      'dvigatel': 'Двигатель',
+      'zamena': 'Замена',
+      'kolodki': 'Колодки',
+      'korobka': 'Коробка',
+      'kuzov': 'Кузов',
+      'maslo': 'Масло',
+      'pokraska': 'Покраска',
+      'raznoe': 'Разное',
+      'remen': 'Ремень',
+      'remont': 'Ремонт',
+      'shod-razval': 'Сходразвал',
+      'turbina': 'Турбина',
+      'forsunki': 'Форсунки'
     };
+
 
     let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()];
     if (!russianCategoryTitle) {
