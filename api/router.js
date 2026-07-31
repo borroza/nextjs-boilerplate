@@ -264,7 +264,7 @@ export default async function handler(req, res) {
         const pageUrl = i === 1 ? `/category/${currentCategorySlug}/` : `/category/${currentCategorySlug}/page/${i}/`;
         
         if (isActive) {
-          categoryHtml += `<a href="\({pageUrl}" class="is-active">\){i}</a>`;
+         categoryHtml += `<a href="${pageUrl}" class="is-active">${i}</a>`;
         } else {
      categoryHtml += `<a href="${pageUrl}">${i}</a>`;
         }
