@@ -129,7 +129,7 @@ export default async function handler(req, res) {
       russianCategoryTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1).toLowerCase();
     }
 
-    // Настройка пагинации
+    // Настройка пагинации (выводим по 20 статей)
     const PAGE_SIZE = 20; 
     const urlObj = new URL(req.url, `http://${currentDomain}`);
     const page = parseInt(urlObj.searchParams.get('page')) || 1;
@@ -187,47 +187,11 @@ export default async function handler(req, res) {
         
         <div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
-       // Умный и безопасный перебор карточек с вытаскиванием реальных данных
-    catPages.forEach((page, index) => {
-      const html = page.html_content || '';
+    // ОДИН единственный, чистый и безопасный цикл перебора карточек
+    catPages.forEach((pageItem, index) => {
+      const html = pageItem.html_content || '';
       
-      // 1. БЕЗОПАСНО ИЩЕМ ЗАГОЛОВОК СТАТЬИ
-      let title = '';
-      if (html.includes('<h1')) {
-        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-        if (matchH1 && matchH1[1]) {
-          title = matchH1[1].replace(/<[^>]*>/g, '').trim();
-        }
-      }
-      // Резервный вариант, если тег <h1> отсутствует
-      if (!title) {
-        const globalIndex = offset + index + 1;
-        title = `Полезный материал №${globalIndex}`;
-      }
-
-              // Полностью безопасный цикл с извлечением текста через [1] и обрезкой по знакам препинания
-    catPages.forEach((page, index) => {
-      const html = page.html_content || '';
-      
-      // 1. БЕЗОПАСНО ИЩЕМ ЗАГОЛОВОК СТАТЬИ
-      let title = '';
-      if (html.includes('<h1')) {
-        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-        if (matchH1 && matchH1[1]) {
-          // Убираем HTML теги из группы [1] и переводим в строку
-          title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim();
-        }
-      }
-      if (!title) {
-        const globalIndex = offset + index + 1;
-        title = `Полезный материал №${globalIndex}`;
-      }
-
-         // Полностью стабильный цикл с гарантированной обрезкой по знакам препинания
-    catPages.forEach((page, index) => {
-      const html = page.html_content || '';
-      
-      // 1. БЕЗОПАСНО ИЩЕМ ЗАГОЛОВОК СТАТЬИ
+      // 1. Извлекаем заголовок из H1
       let title = '';
       if (html.includes('<h1')) {
         const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
@@ -237,10 +201,10 @@ export default async function handler(req, res) {
       }
       if (!title) {
         const globalIndex = offset + index + 1;
-        title = `Полезный материал №${globalIndex}`;
+        title = `Полезный material №${globalIndex}`;
       }
 
-      // 2. БЕЗОПАСНО ИЩЕМ ТЕКСТ ДЛЯ АНОНСА И СТРОГО ОБРЕЗАЕМ ПО ТОЧКЕ
+      // 2. Извлекаем анонс из первого P и красиво обрезаем по знаку завершения предложения
       let description = '';
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
@@ -249,19 +213,17 @@ export default async function handler(req, res) {
           
           if (cleanP.length > 15) {
             if (cleanP.length > 180) {
-              // Берем строку с небольшим запасом
               const subStr = cleanP.substring(0, 220);
               
-              // Ищем позиции последних возможных окончаний предложений
+              // Находим концы предложений (. ! ? или …)
               const lastDot = subStr.lastIndexOf('.');
               const lastExcl = subStr.lastIndexOf('!');
               const lastQuest = subStr.lastIndexOf('?');
               const lastEllipsis = subStr.lastIndexOf('…');
               
-              // Находим самый крайний знак препинания в этой строке
               let lastValidEnd = Math.max(lastDot, lastExcl, lastQuest, lastEllipsis);
 
-              // Проверяем, не захватили ли мы кавычку или скобку после этого знака
+              // Учитываем кавычки или скобки сразу после знака препинания
               if (lastValidEnd > 40 && lastValidEnd < subStr.length - 1) {
                 const nextChar = subStr.charAt(lastValidEnd + 1);
                 if (['»', '"', ')', ']'].includes(nextChar)) {
@@ -269,16 +231,13 @@ export default async function handler(req, res) {
                 }
               }
 
-              // Если знак препинания найден в разумных пределах — режем по нему
               if (lastValidEnd > 40) {
                 description = subStr.substring(0, lastValidEnd + 1).trim();
               } else {
-                // Если знаков нет, аккуратно режем по пробелу, чтобы не рвать слово
                 const lastSpace = subStr.substring(0, 180).lastIndexOf(' ');
                 description = (lastSpace > 40 ? subStr.substring(0, lastSpace) : subStr.substring(0, 180)) + '...';
               }
             } else {
-              // Если текст изначально короткий, проверяем знак препинания на конце
               const lastChar = cleanP.slice(-1);
               description = ['.', '!', '?', '…', '»', '"', ')'].includes(lastChar) ? cleanP : cleanP + '.';
             }
@@ -286,12 +245,11 @@ export default async function handler(req, res) {
         }
       }
 
-      // Резервный анонс на самый крайний случай (гарантирует, что переменная определена)
       if (!description) {
         description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.';
       }
 
-      const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
+      const fixedPath = pageItem.url_path.startsWith('/') ? pageItem.url_path : `/${pageItem.url_path}`;
       
       categoryHtml += `
         <article class="article-card">
@@ -302,22 +260,10 @@ export default async function handler(req, res) {
           </div>
         </article>`;
     });
-
-      
-      categoryHtml += `
-        <article class="article-card">
-          <div class="card-icon">📄</div>
-          <div class="card-body">
-            <h2 style="margin:0 0 6px; font-size:20px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2>
-            <p style="margin:0; color:var(--muted); font-size:14px; line-height:1.5;">${description}</p>
-          </div>
-        </article>`;
-    });
-
 
     categoryHtml += `</div>`; // Закрываем .cat-list
 
-    // Пагинация под ваш класс .pagination и активное состояние .is-active
+    // Блок постраничной навигации
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
     if (totalPages > 1) {
       categoryHtml += `<div class="pagination" style="display: flex; gap: 8px; margin-top: 30px; justify-content: center;">`;
@@ -331,6 +277,7 @@ export default async function handler(req, res) {
     categoryHtml += `</main></body></html>`;
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
   }
+
 
 
     // Если это путь без расширения и не главная, отдаем Vercel 404
