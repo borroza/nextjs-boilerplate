@@ -108,9 +108,10 @@ export default async function handler(req, res) {
                 .send(siteCss);
     }
 
-     // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
+      // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
   if (urlPath.startsWith('/category/')) {
-    const currentCategorySlug = urlPath.replace('/category/', '');
+    // Вырезаем базовый слаг категории (удаляем префикс и возможные хвосты /page/X)
+    let currentCategorySlug = urlPath.replace('/category/', '').split('/')[0];
 
     if (!currentCategorySlug) {
       return sendVercel404();
@@ -131,8 +132,18 @@ export default async function handler(req, res) {
 
     // Настройка пагинации (выводим по 20 статей)
     const PAGE_SIZE = 20; 
-    const urlObj = new URL(req.url, `http://${currentDomain}`);
-    const page = parseInt(urlObj.searchParams.get('page')) || 1;
+    let page = 1;
+
+    // Пытаемся получить страницу из ЧПУ пути (/page/2) через регулярное выражение Vercel или напрямую из req.url
+    const pageRouteMatch = urlPath.match(/\/page\/(\d+)/i);
+    if (pageRouteMatch && pageRouteMatch[1]) {
+      page = parseInt(pageRouteMatch[1]);
+    } else {
+      // Резервный вариант считывания из ?page=X (на случай старых переходов)
+      const urlObj = new URL(req.url, `http://${currentDomain}`);
+      page = parseInt(urlObj.searchParams.get('page')) || 1;
+    }
+
     const offset = (page - 1) * PAGE_SIZE;
 
     const categoryPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategorySlug)}&select=url_path,html_content&limit=${PAGE_SIZE}&offset=${offset}`;
@@ -182,12 +193,12 @@ export default async function handler(req, res) {
         <div class="cat-hero">
           <span>🛠</span>
           <h1>${russianCategoryTitle}</h1>
-          <p>Список опубликованных материалов в данном разделе сайта (Всего материалов: ${totalCount}).</p>
+          <p>Список опубликованных материалов в данном разделе сайта.</p> 
         </div>
         
         <div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
-    // ОДИН единственный, чистый и безопасный цикл перебора карточек
+    // Безопасный перебор карточек с извлечением текста предложений
     catPages.forEach((pageItem, index) => {
       const html = pageItem.html_content || '';
       
@@ -201,10 +212,10 @@ export default async function handler(req, res) {
       }
       if (!title) {
         const globalIndex = offset + index + 1;
-        title = `Полезный material №${globalIndex}`;
+        title = `Полезный материал №${globalIndex}`;
       }
 
-                  // 2. Извлекаем анонс из первого P (с увеличенным лимитом до 300 символов)
+      // 2. Извлекаем анонс из первого P (чистый срез по слову без лишних знаков в конце)
       let description = '';
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
@@ -212,27 +223,20 @@ export default async function handler(req, res) {
           const cleanP = String(matchP[1]).replace(/<[^>]*>/g, '').trim();
           
           if (cleanP.length > 15) {
-            // Если текст длиннее 300 символов, ищем точку для красивого среза
             if (cleanP.length > 300) {
-              // Берем строку с запасом до 350 символов, чтобы найти конец предложения
               let subStr = cleanP.substring(0, 350);
-              
-              // Ищем полноценный конец предложения (. ! ?) в пределах расширенной строки
               const lastDot = subStr.substring(0, 320).lastIndexOf('.');
               const lastExcl = subStr.substring(0, 320).lastIndexOf('!');
               const lastQuest = subStr.substring(0, 320).lastIndexOf('?');
               const lastSign = Math.max(lastDot, lastExcl, lastQuest);
 
               if (lastSign > 40) {
-                // Если предложение завершилось — берем его целиком со знаком препинания
                 description = subStr.substring(0, lastSign + 1).trim();
               } else {
-                // Если предложение всё ещё гигантское, аккуратно режем по пробелу около 300 символов
                 const lastSpace = subStr.substring(0, 300).lastIndexOf(' ');
                 description = lastSpace > 40 ? subStr.substring(0, lastSpace).trim() : subStr.substring(0, 300).trim();
               }
             } else {
-              // Если текст изначально короткий, выводим его полностью как есть
               description = cleanP;
             }
           }
@@ -242,9 +246,6 @@ export default async function handler(req, res) {
       if (!description) {
         description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.';
       }
-
-
-
 
       const fixedPath = pageItem.url_path.startsWith('/') ? pageItem.url_path : `/${pageItem.url_path}`;
       
@@ -260,13 +261,15 @@ export default async function handler(req, res) {
 
     categoryHtml += `</div>`; // Закрываем .cat-list
 
-    // Блок постраничной навигации
+    // Блок постраничной навигации в формате /category/avtomobil/page/X/
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
     if (totalPages > 1) {
       categoryHtml += `<div class="pagination" style="display: flex; gap: 8px; margin-top: 30px; justify-content: center;">`;
       for (let i = 1; i <= totalPages; i++) {
         const isActive = i === page;
-        categoryHtml += `<a href="?page=${i}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
+        // Генерируем красивую ЧПУ ссылку вместо query параметра
+        const pageUrl = i === 1 ? `/category/${currentCategorySlug}/` : `/category/${currentCategorySlug}/page/${i}/`;
+        categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
       }
       categoryHtml += `</div>`;
     }
@@ -274,6 +277,7 @@ export default async function handler(req, res) {
     categoryHtml += `</main></body></html>`;
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
   }
+
 
 
 
