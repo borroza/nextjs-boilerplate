@@ -125,8 +125,8 @@ export default async function handler(req, res) {
     // Если адрес содержит структуру пагинации /page/
     if (targetPath.indexOf('/page/') !== -1) {
       const parts = targetPath.split('/page/');
-      const firstPart = parts[0];
-      const secondPart = parts[1];
+      const firstPart = parts[0]; // Индекс 0 - забираем чистый слаг
+      const secondPart = parts[1]; // Индекс 1 - забираем номер страницы
       
       currentCategorySlug = firstPart.replace('/category/', '');
       page = parseInt(secondPart) || 1;
@@ -135,9 +135,6 @@ export default async function handler(req, res) {
     if (!currentCategorySlug) {
       return sendVercel404();
     }
-
-
-
 
     const categoryTitles = {
       'avtomobil': 'Автомобили',
@@ -271,7 +268,6 @@ export default async function handler(req, res) {
       categoryHtml += `<div class="pagination" style="display: flex; gap: 8px; margin-top: 30px; justify-content: center;">`;
       for (let i = 1; i <= totalPages; i++) {
         const isActive = i === page;
-        // Первая страница ведет на корень категории, остальные — на /page/i/
         const pageUrl = i === 1 ? `/category/${currentCategorySlug}/` : `/category/${currentCategorySlug}/page/${i}/`;
         categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
       }
@@ -279,8 +275,11 @@ export default async function handler(req, res) {
     }
 
     categoryHtml += `</main></body></html>`;
+    
+    // ВАЖНО: Возвращаем ответ и прерываем функцию, чтобы код не шел к строке 282!
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
   }
+
 
 
     // Если это путь без расширения и не главная, отдаем Vercel 404
