@@ -157,20 +157,29 @@ export default async function handler(req, res) {
     // Внедряем инлайновые стили ${siteCss} вместо ломающегося файла стилей
     let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title><style>${siteCss}</style></head><body><header class="site-header"><div class="nav-container"><a href="/" class="logo"><span>${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><a href="/">Главная</a> / <span>${russianCategoryTitle}</span></div><main class="category-main"><div class="category-header"><h1>${russianCategoryTitle}</h1><p>Список опубликованных материалов в данном разделе сайта (Всего: ${totalCount}).</p></div><div class="articles-grid">`;
 
-        catPages.forEach(page => {
+    catPages.forEach(page => {
       let title = 'Читать статью';
       let description = 'Разбираем особенности, даем практические советы и инструкции в детальном обзоре...';
       const html = page.html_content || '';
 
       if (html.includes('<h1')) {
         const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-        if (matchH1 && matchH1[1]) title = matchH1[1].replace(/<[^>]*>/g, '').trim();
+        // ИСПРАВЛЕНО: берем группу [1] и проверяем, что это строка
+        if (matchH1 && matchH1[1]) {
+          title = typeof matchH1[1].replace === 'function' 
+            ? matchH1[1].replace(/<[^>]*>/g, '').trim() 
+            : String(matchH1[1]).trim();
+        }
       }
 
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+        // ИСПРАВЛЕНО: берем группу [1] и проверяем, что это строка
         if (matchP && matchP[1]) {
-          const cleanP = matchP[1].replace(/<[^>]*>/g, '').trim();
+          const cleanP = typeof matchP[1].replace === 'function'
+            ? matchP[1].replace(/<[^>]*>/g, '').trim()
+            : String(matchP[1]).trim();
+
           if (cleanP.length > 10) {
             if (cleanP.length > 190) {
               const subStr = cleanP.substring(0, 190);
@@ -188,6 +197,7 @@ export default async function handler(req, res) {
       const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
       categoryHtml += `<article class="article-card"><h2 class="card-title"><a href="${fixedPath}">${title}</a></h2><p class="card-description">${description}</p></article>`;
     });
+
 
     // Отрисовка кнопок переключения страниц
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
