@@ -187,11 +187,41 @@ export default async function handler(req, res) {
         
         <div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
-    // Безопасный перебор карточек без использования регулярных выражений
+       // Умный и безопасный перебор карточек с вытаскиванием реальных данных
     catPages.forEach((page, index) => {
-      const globalIndex = offset + index + 1;
-      const title = `Читать полезный материал №${globalIndex}`;
-      const description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре...';
+      const html = page.html_content || '';
+      
+      // 1. БЕЗОПАСНО ИЩЕМ ЗАГОЛОВОК СТАТЬИ
+      let title = '';
+      if (html.includes('<h1')) {
+        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+        if (matchH1 && matchH1[1]) {
+          title = matchH1[1].replace(/<[^>]*>/g, '').trim();
+        }
+      }
+      // Резервный вариант, если тег <h1> отсутствует
+      if (!title) {
+        const globalIndex = offset + index + 1;
+        title = `Полезный материал №${globalIndex}`;
+      }
+
+      // 2. БЕЗОПАСНО ИЩЕМ ТЕКСТ ДЛЯ АНОНСА (первый абзац)
+      let description = '';
+      if (html.includes('<p')) {
+        const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+        if (matchP && matchP[1]) {
+          const cleanP = matchP[1].replace(/<[^>]*>/g, '').trim();
+          if (cleanP.length > 15) {
+            // Ограничиваем длину анонса, чтобы карточки были аккуратными
+            description = cleanP.length > 180 ? cleanP.substring(0, 180) + '...' : cleanP;
+          }
+        }
+      }
+      // Резервный анонс
+      if (!description) {
+        description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре...';
+      }
+
       const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
       
       categoryHtml += `
@@ -203,6 +233,7 @@ export default async function handler(req, res) {
           </div>
         </article>`;
     });
+
 
     categoryHtml += `</div>`; // Закрываем .cat-list
 
