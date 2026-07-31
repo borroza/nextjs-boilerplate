@@ -205,50 +205,73 @@ export default async function handler(req, res) {
         title = `Полезный материал №${globalIndex}`;
       }
 
-           // 2. БЕЗОПАСНО ИЩЕМ ТЕКСТ ДЛЯ АНОНСА (С УЧЕТОМ ВСЕХ ЗНАКОВ, КАВЫЧЕК И СКОБОК)
+              // Полностью безопасный цикл с извлечением текста через [1] и обрезкой по знакам препинания
+    catPages.forEach((page, index) => {
+      const html = page.html_content || '';
+      
+      // 1. БЕЗОПАСНО ИЩЕМ ЗАГОЛОВОК СТАТЬИ
+      let title = '';
+      if (html.includes('<h1')) {
+        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+        if (matchH1 && matchH1[1]) {
+          // Убираем HTML теги из группы [1] и переводим в строку
+          title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim();
+        }
+      }
+      if (!title) {
+        const globalIndex = offset + index + 1;
+        title = `Полезный материал №${globalIndex}`;
+      }
+
+      // 2. БЕЗОПАСНО ИЩЕМ ТЕКСТ ДЛЯ АНОНСА И СТРОГО ПРОВЕРЯЕМ СТРОКУ
       let description = '';
       if (html.includes('<p')) {
         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
         if (matchP && matchP[1]) {
-          const cleanP = matchP[1].replace(/<[^>]*>/g, '').trim();
+          const cleanP = String(matchP[1]).replace(/<[^>]*>/g, '').trim();
           
           if (cleanP.length > 15) {
             if (cleanP.length > 180) {
-              // Берем строку с запасом до 240 символов
               const subStr = cleanP.substring(0, 240);
               
-              // Ищем самый последний конец предложения (. ! ? или ...) вместе с возможными кавычками/скобками
-              const regexEnd = /[\.\!\?…]+[»"'\)]*$/;
-              
-              // Находим все знаки препинания в этой строке
+              // Ищем концы предложений со всеми знаками
               const matches = [...subStr.matchAll(/[\.\!\?…]+[»"'\)]*/g)];
               
               let lastValidEnd = -1;
               for (const m of matches) {
                 if (m.index !== undefined && m.index > 40 && m.index <= 210) {
-                  lastValidEnd = m.index + m[0].length;
+                  lastValidEnd = m.index + m.length;
                 }
               }
 
-              // Если нашли идеальный знак препинания в разумных пределах — режем по нему
               if (lastValidEnd > 40) {
                 description = subStr.substring(0, lastValidEnd).trim();
               } else {
-                // Если знаков нет вообще, аккуратно режем по пробелу, чтобы не рвать слово
                 const lastSpace = subStr.substring(0, 180).lastIndexOf(' ');
                 description = (lastSpace > 40 ? subStr.substring(0, lastSpace) : subStr.substring(0, 180)) + '...';
               }
             } else {
-              // Если текст короткий, просто берем целиком и добавляем точку, если знака нет
               description = /[\.\!\?…»"'\)]$/.test(cleanP) ? cleanP : cleanP + '.';
             }
           }
         }
       }
-      // Резервный анонс
       if (!description) {
         description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.';
       }
+
+      const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
+      
+      categoryHtml += `
+        <article class="article-card">
+          <div class="card-icon">📄</div>
+          <div class="card-body">
+            <h2 style="margin:0 0 6px; font-size:20px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2>
+            <p style="margin:0; color:var(--muted); font-size:14px; line-height:1.5;">${description}</p>
+          </div>
+        </article>`;
+    });
+
 
 
       const fixedPath = page.url_path.startsWith('/') ? page.url_path : `/${page.url_path}`;
