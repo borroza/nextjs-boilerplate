@@ -108,7 +108,7 @@ export default async function handler(req, res) {
                 .send(siteCss);
     }
 
-          // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
+         // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
   if (urlPath.startsWith('/category/')) {
     let targetPath = urlPath;
     
@@ -120,18 +120,20 @@ export default async function handler(req, res) {
     const PAGE_SIZE = 20;
     let page = 1;
 
-    // Безопасное ЧПУ-расщепление пути на категорию и страницу
-    if (targetPath.includes('/page/')) {
+    if (targetPath.indexOf('/page/') !== -1) {
       const parts = targetPath.split('/page/');
-      currentCategorySlug = parts[0].replace('/category/', '');
-      page = parseInt(parts[1]) || 1;
+      const firstPart = parts[0] || ''; 
+      const secondPart = parts[1] || '';
+      
+      currentCategorySlug = firstPart.replace('/category/', '');
+      page = parseInt(secondPart) || 1;
     }
 
     if (!currentCategorySlug) {
       return sendVercel404();
     }
 
-       const categoryTitles = {
+    const categoryTitles = {
       'avtomobil': 'Автомобиль',
       'avtoelektrik': 'Автоэлектрик',
       'antifriz': 'Антифриз',
@@ -151,7 +153,6 @@ export default async function handler(req, res) {
       'turbina': 'Турбина',
       'forsunki': 'Форсунки'
     };
-
 
     let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()];
     if (!russianCategoryTitle) {
@@ -185,7 +186,14 @@ export default async function handler(req, res) {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>${russianCategoryTitle} | ${siteTitle}</title>
-      <style>${siteCss}</style>
+      <style>
+        ${siteCss}
+        .pagination a.nav-arrow { font-size: 18px; font-weight: 400; transition: transform 0.2s ease, color 0.2s; }
+        .pagination a.arrow-start:hover { transform: translateX(-4px); }
+        .pagination a.arrow-prev:hover { transform: translateX(-3px); }
+        .pagination a.arrow-next:hover { transform: translateX(3px); }
+        .pagination a.arrow-end:hover { transform: translateX(4px); }
+      </style>
     </head>
     <body>
       <div class="topbar"></div>
@@ -271,67 +279,40 @@ export default async function handler(req, res) {
 
     categoryHtml += `</div>`;
 
-       // УМНЫЙ И СТИЛЬНЫЙ БЛОК ПАГИНАЦИИ С ИНТЕРЕСНЫМИ СТРЕЛКАМИ
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
     if (totalPages > 1) {
-      categoryHtml += `
-      <style>
-        .pagination a.nav-arrow { font-size: 18px; font-weight: 400; transition: transform 0.2s ease, color 0.2s; }
-        .pagination a.arrow-start:hover { transform: translateX(-4px); }
-        .pagination a.arrow-prev:hover { transform: translateX(-3px); }
-        .pagination a.arrow-next:hover { transform: translateX(3px); }
-        .pagination a.arrow-end:hover { transform: translateX(4px); }
-      </style>
-      <div class="pagination" style="display: flex; gap: 8px; margin-top: 40px; justify-content: center; align-items: center; flex-wrap: wrap;">`;
+      categoryHtml += `<div class="pagination" style="display: flex; gap: 8px; margin-top: 40px; justify-content: center; align-items: center; flex-wrap: wrap;">`;
       
       const catSlug = currentCategorySlug;
 
-      // ================= ЛЕВЫЕ ИНТЕРЕСНЫЕ СТРЕЛКИ =================
       if (page > 1) {
-        // В самое начало (Двойной шеврон)
         categoryHtml += `<a href="/category/${catSlug}/" class="nav-arrow arrow-start" title="В начало">&#10218;</a>`;
-        
-        // На одну страницу назад (Длинная стрелка влево)
         const prevPageUrl = (page - 1) === 1 ? `/category/${catSlug}/` : `/category/${catSlug}/page/${page - 1}/`;
         categoryHtml += `<a href="${prevPageUrl}" class="nav-arrow arrow-prev" title="Предыдущая страница">&larr;</a>`;
       }
 
-      // ================= ЦИФРЫ И МНОГОТОЧИЯ =================
-      const range = 2; // Сколько цифр показывать вокруг текущей страницы
-      
+      const range = 2; 
       for (let i = 1; i <= totalPages; i++) {
         const isActive = i === page;
         const pageUrl = i === 1 ? `/category/${catSlug}/` : `/category/${catSlug}/page/${i}/`;
 
         if (i === 1 || i === totalPages) {
-          if (isActive) {
-            categoryHtml += `<a href="${pageUrl}" class="is-active">${i}</a>`;
-          } else {
-            categoryHtml += `<a href="${pageUrl}">${i}</a>`;
-          }
+          categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
         }
         else if (i >= page - range && i <= page + range) {
-          if (isActive) {
-            categoryHtml += `<a href="${pageUrl}" class="is-active">${i}</a>`;
-          } else {
-            categoryHtml += `<a href="${pageUrl}">${i}</a>`;
-          }
+          categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
         }
         else if (i === page - range - 1) {
-          categoryHtml += `<span style="color: var(--muted, #64748b); padding: 0 4px; font-weight: 500;">...</span>`;
+          categoryHtml += `<span style="color: var(--muted); padding: 0 4px; font-weight: 500;">...</span>`;
         }
         else if (i === page + range + 1) {
-          categoryHtml += `<span style="color: var(--muted, #64748b); padding: 0 4px; font-weight: 500;">...</span>`;
+          categoryHtml += `<span style="color: var(--muted); padding: 0 4px; font-weight: 500;">...</span>`;
         }
       }
 
-      // ================= ПРАВЫЕ ИНТЕРЕСНЫЕ СТРЕЛКИ =================
       if (page < totalPages) {
-        // На одну страницу вперед (Длинная стрелка вправо)
         const nextPageUrl = `/category/${catSlug}/page/${page + 1}/`;
         categoryHtml += `<a href="${nextPageUrl}" class="nav-arrow arrow-next" title="Следующая страница">&rarr;</a>`;
-        
-        // В самый конец (Двойной шеврон)
         const lastPageUrl = `/category/${catSlug}/page/${totalPages}/`;
         categoryHtml += `<a href="${lastPageUrl}" class="nav-arrow arrow-end" title="В конец">&#10219;</a>`;
       }
@@ -339,12 +320,9 @@ export default async function handler(req, res) {
       categoryHtml += `</div>`;
     }
 
-    }
-
     categoryHtml += `</main></body></html>`;
     return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
   }
-
 
     // Если это путь без расширения и не главная, отдаем Vercel 404
     if (!urlPath.includes('.') && urlPath !== '/') {
