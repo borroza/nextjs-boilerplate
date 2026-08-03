@@ -13,7 +13,7 @@ module.exports = async function handler(req, res) {
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     // МГНОВЕННЫЙ ПЕРЕХВАТ СТИЛЕЙ ДО ЛЮБОЙ ОЧИСТКИ ПУТЕЙ И МАССИВОВ ⚡
-    if (fullUrl.includes('/static/css/style.css')) {
+    if (fullUrl.includes('style.css') || (req.query && req.query.path && req.query.path.includes('style.css'))) {
       const cssUrl = `${supabaseUrl}/rest/v1/sites?id=eq.1&select=css_content`;
       const cssResponse = await fetch(cssUrl, {
         method: 'GET',
