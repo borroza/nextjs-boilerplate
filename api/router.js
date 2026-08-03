@@ -1,5 +1,3 @@
-const { createClient } = require('@supabase/supabase-client');
-
 module.exports = async function handler(req, res) {
 
   // Универсальная функция, которая выводит ТОЧНУЮ копию фирменной страницы 404 Vercel
@@ -29,9 +27,6 @@ module.exports = async function handler(req, res) {
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    // Инициализируем клиент Supabase
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 1. ОТДАЧА ROBOTS.TXT
     if (urlPath === '/robots.txt') {
