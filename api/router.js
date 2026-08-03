@@ -318,39 +318,85 @@ const relatedData = await relatedResponse.json();
     // Заменяем глобальный тег текущего года
     htmlContent = htmlContent.replaceAll('[CURRENT_YEAR]', new Date().getFullYear().toString());
 
-    // ==========================================
-    // ВОЗВРАТ ОРИГИНАЛЬНОГО ЖИВОГО ПОИСКА И СКРОЛЛА
-    // ==========================================
-    const allPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content&limit=1000`;
-    const allPagesResponse = await fetch(allPagesUrl, {
-      method: 'GET',
-      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+   // ==========================================
+  // ВОЗВРАТ ОРИГИНАЛЬНОГО ЖИВОГО ПОИСКА И СКРОЛЛА
+  // ==========================================
+
+  const jsScripts = `
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const contentLinks = document.querySelectorAll('details ol li a[href^="#"]');
+  const articleHeaders = document.querySelectorAll('.article-body h2, .article h2, article h2');
+  
+  contentLinks.forEach((anchor, index) => {
+    anchor.addEventListener('click', function(e) {
+      e.preventDefault();
+      const targetElement = articleHeaders[index];
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const targetId = this.getAttribute('href').substring(1);
+        window.history.pushState(null, null, '#' + targetId);
+      }
     });
-    const allPagesData = await allPagesResponse.json();
+  });
 
-    let searchDatabase = [];
-    if (Array.isArray(allPagesData)) {
-      allPagesData.forEach(p => {
-        if (p.url_path.includes('.') || p.url_path.endsWith('.html')) {
-          let title = p.url_path;
-          if (p.html_content && p.html_content.includes('<h1')) {
-            const matchH1 = p.html_content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-            if (matchH1 && matchH1[1]) { title = matchH1[1].replace(/<[^>]*>/g, '').trim(); }
-          }
-          searchDatabase.push({ name: title, path: p.url_path });
-        }
-      });
-    }
+  const searchInput = document.getElementById('globalSearchInput') || document.querySelector('input[type="search"]');
+  const searchDropdown = document.getElementById('globalSearchDropdown') || document.querySelector('.search-dropdown');
+  
+  if (searchInput && searchDropdown) {
+    let allArticles = [];
+    
+    searchInput.addEventListener('focus', async () => {
+      if (allArticles.length === 0) {
+        try {
+          const res = await fetch('/api/search-db');
+          allArticles = await res.json();
+        } catch (e) { console.error("Ошибка загрузки базы поиска"); }
+      }
+    }, { once: true });
 
-    const jsScripts = `<script>document.addEventListener("DOMContentLoaded",function(){const contentLinks=document.querySelectorAll('details ol li a[href^="#"]');const articleHeaders=document.querySelectorAll('.article-body h2, .article h2, article h2');contentLinks.forEach((anchor,index)=>{anchor.addEventListener('click',function(e){e.preventDefault();const targetElement=articleHeaders[index];if(targetElement){targetElement.scrollIntoView({behavior:'smooth',block:'start'});const targetId=this.getAttribute('href').substring(1);window.history.pushState(null,null,'#'+targetId);}});});const allArticles=${JSON.stringify(searchDatabase)};const searchInput=document.getElementById('globalSearchInput')||document.querySelector('input[type="search"]');const searchDropdown=document.getElementById('globalSearchDropdown')||document.querySelector('.search-dropdown');if(searchInput&&searchDropdown){searchDropdown.style.display='none';searchDropdown.style.position='absolute';searchDropdown.style.backgroundColor='#fff';searchDropdown.style.border='1px solid #e2e8f0';searchDropdown.style.borderRadius='8px';searchDropdown.style.width=searchInput.offsetWidth+'px';searchDropdown.style.maxHeight='300px';searchDropdown.style.overflowY='auto';searchDropdown.style.zIndex='999';searchDropdown.style.boxShadow='0 10px 15px -3px rgba(0,0,0,0.1)';searchInput.addEventListener('input',function(){const query=this.value.trim().toLowerCase();searchDropdown.innerHTML='';if(query.length<2){searchDropdown.style.display='none';return;}const filtered=allArticles.filter(art=>art.name.toLowerCase().includes(query)).slice(0,5);if(filtered.length>0){filtered.forEach(art=>{const item=document.createElement('a');item.href=art.path.startsWith('/')?art.path:'/'+art.path;item.className='search-item';item.style.display='block';item.style.padding='10px 15px';item.style.color='#1e293b';item.style.textDecoration='none';item.style.borderBottom='1px solid #f1f5f9';item.style.fontSize='14px';item.innerHTML='📄 '+art.name;item.addEventListener('mouseover',()=>item.style.backgroundColor='#f1f5f9');item.addEventListener('mouseout',()=>item.style.backgroundColor='#fff');searchDropdown.appendChild(item);});searchDropdown.style.display='block';}else{searchDropdown.innerHTML='<div style="padding: 10px 15px; color: #64748b; font-size: 14px;">Ничего не найдено</div>';searchDropdown.style.display='block';}});document.addEventListener('click',function(e){if(e.target!==searchInput&&e.target!==searchDropdown){searchDropdown.style.display='none';}});}});\n</script></body>`;
+    searchInput.addEventListener('input', function() {
+      const query = this.value.trim().toLowerCase();
+      searchDropdown.innerHTML = '';
+      if (query.length < 2) { searchDropdown.style.display = 'none'; return; }
+      
+      const filtered = allArticles.filter(art => art.name.toLowerCase().includes(query)).slice(0, 5);
+      if (filtered.length > 0) {
+        filtered.forEach(art => {
+          const item = document.createElement('a');
+          item.href = art.path.startsWith('/') ? art.path : '/' + art.path;
+          item.className = 'search-item';
+          item.style.display = 'block';
+          item.style.padding = '10px 15px';
+          item.style.color = '#1e293b';
+          item.style.textDecoration = 'none';
+          item.style.borderBottom = '1px solid #f1f5f9';
+          item.style.fontSize = '14px';
+          item.innerHTML = '📄 ' + art.name;
+          item.addEventListener('mouseover', () => item.style.backgroundColor = '#f1f5f9');
+          item.addEventListener('mouseout', () => item.style.backgroundColor = '#fff');
+          searchDropdown.appendChild(item);
+        });
+        searchDropdown.style.display = 'block';
+      } else {
+        searchDropdown.innerHTML = '<div style="padding: 10px 15px; color: #64748b; font-size: 14px;">Ничего не найдено</div>';
+        searchDropdown.style.display = 'block';
+      }
+    });
 
-    htmlContent = htmlContent + jsScripts;
-
-    return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
-
-  } catch (err) {
-    return res.status(500).send('Internal Error: ' + err.message);
+    document.addEventListener('click', function(e) {
+      if (e.target !== searchInput && e.target !== searchDropdown) { searchDropdown.style.display = 'none'; }
+    });
   }
-}
+});
+</script></body>`;
+
+  htmlContent = htmlContent + jsScripts;
+
+  return res.status(200)
+    .setHeader('Content-Type', 'text/html; charset=utf-8')
+    .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
+    .send(htmlContent);
+
 
 
