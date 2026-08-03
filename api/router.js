@@ -284,7 +284,8 @@ const relatedData = await relatedResponse.json();
     if (Array.isArray(relatedData) && relatedData.length > 0) {
       relatedData.forEach((p, index) => {
         const h1Match = p.html_content ? p.html_content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) : null;
-        const title = h1Match && h1Match ? h1Match[1].replace(/<[^>]*>/g, '').trim() : 'Читать статью';
+       const title = h1Match && h1Match[1] ? h1Match[1].replace(/<[^>]*>/g, '').trim() : 'Читать статью';
+
 
         // 1. Формируем ссылки для сайдбара (согласно селекторам .related вашего CSS)
         if (index < 5) { 
@@ -318,9 +319,9 @@ const relatedData = await relatedResponse.json();
     // Заменяем глобальный тег текущего года
     htmlContent = htmlContent.replaceAll('[CURRENT_YEAR]', new Date().getFullYear().toString());
 
-   // ==========================================
-  // ВОЗВРАТ ОРИГИНАЛЬНОГО ЖИВОГО ПОИСКА И СКРОЛЛА
   // ==========================================
+// ВОЗВРАТ ОРИГИНАЛЬНОГО ЖИВОГО ПОИСКА И СКРОЛЛА
+// ==========================================
 
   const jsScripts = `
 <script>
@@ -393,7 +394,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
   htmlContent = htmlContent + jsScripts;
 
-   return res.status(200)
+  return res.status(200)
     .setHeader('Content-Type', 'text/html; charset=utf-8')
     .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
     .send(htmlContent);
@@ -402,3 +403,5 @@ document.addEventListener("DOMContentLoaded", function() {
     return res.status(500).send('Internal Error: ' + err.message);
   }
 };
+
+
