@@ -306,13 +306,14 @@ const relatedData = await relatedResponse.json();
       readAlsoCardsHtml = '<p>В этой категории пока нет других публикаций.</p>';
     }
 
-    // Подставляем сформированные блоки рекомендаций в HTML статьи
+       // Подставляем сформированные блоки рекомендаций в HTML статьи
     htmlContent = htmlContent.replace(/<ul id="dynamicRelatedList">([\s\S]*?)<\/ul>/i, `<ul id="dynamicRelatedList">${sidebarLinksHtml}</ul>`);
     htmlContent = htmlContent.replace(/<div class="list-grid" id="dynamicGridReadAlso">([\s\S]*?)<\/div>/i, `<div class="list-grid" id="dynamicGridReadAlso">${readAlsoCardsHtml}</div>`);
     
-    // Синхронизируем подвал: заменяем старый класс .footer на заложенный в CSS .site-footer и .copyright
-    htmlContent = htmlContent.replace(/<footer class="footer">/gi, '<footer class="site-footer"><div class="container footer-inner">');
-    htmlContent = htmlContent.replace(/<div class="footer-copy">/gi, '</div><div class="copyright">');
+    // Автоматическая замена глобальных переменных в футере и по тексту статьи
+    htmlContent = htmlContent.replaceAll('[CURRENT_YEAR]', new Date().getFullYear().toString());
+    htmlContent = htmlContent.replaceAll('[SITE_TITLE]', siteTitle);
+
     
     // Заменяем глобальный тег текущего года
     htmlContent = htmlContent.replaceAll('[CURRENT_YEAR]', new Date().getFullYear().toString());
