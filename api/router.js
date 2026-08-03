@@ -19,8 +19,6 @@ module.exports = async function handler(req, res) {
 
     const urlParts = fullUrl.split('?');
     let urlPath = urlParts[0]; // Чистый путь
-    let urlPath = urlParts[0]; // Выбираем именно первый элемент (чистый путь)
-
 
     if (urlPath.endsWith('/') && urlPath.length > 1) {
       urlPath = urlPath.slice(0, -1);
