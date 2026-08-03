@@ -1,5 +1,4 @@
 module.exports = async function handler(req, res) {
-
   // Универсальная функция, которая выводит ТОЧНУЮ копию фирменной страницы 404 Vercel
   const sendVercel404 = () => {
     const requestId = `arn1::fbm7g-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
@@ -10,13 +9,32 @@ module.exports = async function handler(req, res) {
   try {
     const fullUrl = req.url || '';
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    // МГНОВЕННЫЙ ПЕРЕХВАТ СТИЛЕЙ ДО ЛЮБОЙ ОЧИСТКИ ПУТЕЙ И МАССИВОВ ⚡
+    if (fullUrl.includes('/static/css/style.css')) {
+      const cssUrl = `${supabaseUrl}/rest/v1/sites?id=eq.1&select=css_content`;
+      const cssResponse = await fetch(cssUrl, {
+        method: 'GET',
+        headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+      });
+      const cssData = await cssResponse.json();
+      const actualCss = Array.isArray(cssData) && cssData.length > 0 ? cssData[0].css_content : '';
+
+      return res.status(200)
+        .setHeader('Content-Type', 'text/css; charset=utf-8')
+        .setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=600')
+        .send(actualCss);
+    }
+
     // Защита от дублей
     if (fullUrl.includes('//')) {
       return sendVercel404();
     }
 
     const urlParts = fullUrl.split('?');
-    let urlPath = urlParts[0]; // Чистый путь
+    let urlPath = urlParts[0]; // Чистый строковый путь, исправлен баг с массивом
 
     if (urlPath.endsWith('/') && urlPath.length > 1) {
       urlPath = urlPath.slice(0, -1);
@@ -25,30 +43,13 @@ module.exports = async function handler(req, res) {
     const currentDomain = req.headers.host || ''; 
     const protocol = currentDomain.includes('localhost') ? 'http' : 'https';
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
 
     // 1. ОТДАЧА ROBOTS.TXT
     if (urlPath === '/robots.txt') {
       const robotsTxt = `User-agent: *\nAllow: /\n\nSitemap: ${protocol}://${currentDomain}/sitemap.xml`;
       return res.status(200).setHeader('Content-Type', 'text/plain; charset=utf-8').send(robotsTxt);
     }
-
-   // ДИНАМИЧЕСКАЯ ОТДАЧА СТИЛЕЙ КУДА ССЫЛАЕТСЯ HTML СТАТЬИ ⚡
-  if (urlPath.endsWith('/static/css/style.css')) {
-    const cssUrl = `${supabaseUrl}/rest/v1/sites?id=eq.1&select=css_content`;
-    const cssResponse = await fetch(cssUrl, {
-      method: 'GET',
-      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-    });
-    const cssData = await cssResponse.json();
-    const actualCss = Array.isArray(cssData) && cssData.length > 0 ? cssData[0].css_content : '';
-  
-    return res.status(200)
-      .setHeader('Content-Type', 'text/css; charset=utf-8')
-      .setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=600')
-      .send(actualCss);
-  }
 
 
     // 2. УМНАЯ ГЕНЕРАЦИЯ SITEMAP.XML
