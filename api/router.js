@@ -176,7 +176,8 @@ catPages.forEach((pageItem, index) => {
 const html = pageItem.html_content || '';
 let title = '';
 if (html.includes('<h1')) {
-const matchH1 = html.match(/<h1[^>]>([\s\S]?)</h1>/i);
+const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+
 if (matchH1 && matchH1[1]) { title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim(); }
 }
 if (!title) { title = Полезный материал №${offset + index + 1}; }
