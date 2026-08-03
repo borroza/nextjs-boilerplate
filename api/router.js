@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-client');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
+
   // Универсальная функция, которая выводит ТОЧНУЮ копию фирменной страницы 404 Vercel
   const sendVercel404 = () => {
     const requestId = `arn1::fbm7g-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
