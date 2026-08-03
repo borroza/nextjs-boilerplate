@@ -244,7 +244,7 @@ const currentPageId = data[0].id;
 // ИСПРАВЛЕНИЕ ТАБЛИЦ И БЛОКИ РЕКОМЕНДАЦИЙ
 // ==========================================
 // Лечим таблицы под адаптивный CSS
-htmlContent = htmlContent.replace(/<table([^>]*?)>/gi, '').replace(/</table>/gi, '');
+htmlContent = htmlContent.replace(/<table([^>]*?)>/gi, '<div class="table-wrap"><table>').replace(/<\/table>/gi, '</table></div>');
 // Тянем из базы до 6 похожих статей для блоков рекомендаций
 const relatedUrl = ${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategory)}&id=neq.${currentPageId}&select=url_path,html_content&limit=6;
 const relatedResponse = await fetch(relatedUrl, {
