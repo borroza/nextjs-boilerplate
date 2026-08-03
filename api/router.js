@@ -113,7 +113,7 @@ module.exports = async function handler(req, res) {
         .send(siteCss);
     }
 
-    // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
+     // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
     if (urlPath.startsWith('/category/')) {
       let targetPath = urlPath;
 
@@ -171,61 +171,65 @@ module.exports = async function handler(req, res) {
       const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
       let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title><style>${siteCss}.pagination a.nav-arrow { font-size: 18px; font-weight: 400; transition: transform 0.2s ease, color 0.2s; }.pagination a.arrow-start:hover { transform: translateX(-4px); }.pagination a.arrow-prev:hover { transform: translateX(-3px); }.pagination a.arrow-next:hover { transform: translateX(3px); }.pagination a.arrow-end:hover { transform: translateX(4px); }</style></head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <strong>/</strong> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><span>🛠</span><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
-;
-catPages.forEach((pageItem, index) => {
-const html = pageItem.html_content || '';
-let title = '';
-if (html.includes('<h1')) {
-const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
 
-if (matchH1 && matchH1[1]) { title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim(); }
-}
-if (!title) { title = Полезный материал №${offset + index + 1}; }
-let description = '';
-if (html.includes('<p')) {
-const matchP = html.match(/<p[^>]>([\s\S]?)</p>/i);
-if (matchP && matchP[1]) {
-const cleanP = String(matchP[1]).replace(/<[^>]*>/g, '').trim();
-if (cleanP.length > 15) {
-if (cleanP.length > 300) {
-let subStr = cleanP.substring(0, 350);
-const lastSign = Math.max(subStr.substring(0, 320).lastIndexOf('.'), subStr.substring(0, 320).lastIndexOf('!'), subStr.substring(0, 320).lastIndexOf('?'));
-description = lastSign > 40 ? subStr.substring(0, lastSign + 1).trim() : subStr.substring(0, 300).trim() + '...';
-} else { description = cleanP; }
-}
-}
-}
-if (!description) { description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.'; }
-const fixedPath = pageItem.url_path.startsWith('/') ? pageItem.url_path : /${pageItem.url_path};
-categoryHtml += <article class="article-card"><div class="card-icon">📄</div><div class="card-body"><h2 style="margin:0 0 6px; font-size:20px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2><p style="margin:0; color:var(--muted); font-size:14px; line-height:1.5;">${description}</p></div></article>;
-});
-categoryHtml += </div>;
-const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-if (totalPages > 1) {
-categoryHtml += <div class="pagination" style="display: flex; gap: 8px; margin-top: 40px; justify-content: center; align-items: center; flex-wrap: wrap;">;
-const catSlug = currentCategorySlug;
-if (page > 1) {
-categoryHtml += <a href="/category/${catSlug}/" class="nav-arrow arrow-start" title="В начало">&#10218;</a>;
-const prevPageUrl = (page - 1) === 1 ? /category/${catSlug}/ : /category/${catSlug}/page/${page - 1}/;
-categoryHtml += <a href="${prevPageUrl}" class="nav-arrow arrow-prev" title="Предыдущая страница">&larr;</a>;
-}
-const range = 2;
-for (let i = 1; i <= totalPages; i++) {
-const isActive = i === page;
-const pageUrl = i === 1 ? /category/${catSlug}/ : /category/${catSlug}/page/${i}/;
-if (i === 1 || i === totalPages) { categoryHtml += <a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>; }
-else if (i >= page - range && i <= page + range) { categoryHtml += <a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>; }
-else if (i === page - range - 1 || i === page + range + 1) { categoryHtml += <span style="color: var(--muted); padding: 0 4px; font-weight: 500;">...</span>; }
-}
-if (page < totalPages) {
-categoryHtml += <a href="/category/${catSlug}/page/${page + 1}/" class="nav-arrow arrow-next" title="Следующая страница">&rarr;</a>;
-categoryHtml += <a href="/category/${catSlug}/page/${totalPages}/" class="nav-arrow arrow-end" title="В конец">&#10219;</a>;
-}
-categoryHtml += </div>;
-}
-categoryHtml += </main></body></html>;
-return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
-}
+      catPages.forEach((pageItem, index) => {
+        const html = pageItem.html_content || '';
+        let title = '';
+        if (html.includes('<h1')) {
+          const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+          if (matchH1 && matchH1[1]) { title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim(); }
+        }
+        if (!title) { title = `Полезный материал №${offset + index + 1}`; }
+
+        let description = '';
+        if (html.includes('<p')) {
+          const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+          if (matchP && matchP[1]) {
+            const cleanP = String(matchP[1]).replace(/<[^>]*>/g, '').trim();
+            if (cleanP.length > 15) {
+              if (cleanP.length > 300) {
+                let subStr = cleanP.substring(0, 350);
+                const lastSign = Math.max(subStr.substring(0, 320).lastIndexOf('.'), subStr.substring(0, 320).lastIndexOf('!'), subStr.substring(0, 320).lastIndexOf('?'));
+                description = lastSign > 40 ? subStr.substring(0, lastSign + 1).trim() : subStr.substring(0, 300).trim() + '...';
+              } else { description = cleanP; }
+            }
+          }
+        }
+        if (!description) { description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.'; }
+
+        const fixedPath = pageItem.url_path.startsWith('/') ? pageItem.url_path : `/${pageItem.url_path}`;
+        categoryHtml += `<article class="article-card"><div class="card-icon">📄</div><div class="card-body"><h2 style="margin:0 0 6px; font-size:20px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2><p style="margin:0; color:var(--muted); font-size:14px; line-height:1.5;">${description}</p></div></article>`;
+      });
+
+      categoryHtml += `</div>`;
+      const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+      if (totalPages > 1) {
+        categoryHtml += `<div class="pagination" style="display: flex; gap: 8px; margin-top: 40px; justify-content: center; align-items: center; flex-wrap: wrap;">`;
+        const catSlug = currentCategorySlug;
+        if (page > 1) {
+          categoryHtml += `<a href="/category/${catSlug}/" class="nav-arrow arrow-start" title="В начало">&#10218;</a>`;
+          const prevPageUrl = (page - 1) === 1 ? `/category/${catSlug}/` : `/category/${catSlug}/page/${page - 1}/`;
+          categoryHtml += `<a href="${prevPageUrl}" class="nav-arrow arrow-prev" title="Предыдущая страница">&larr;</a>`;
+        }
+        const range = 2; 
+        for (let i = 1; i <= totalPages; i++) {
+          const isActive = i === page;
+          const pageUrl = i === 1 ? `/category/${catSlug}/` : `/category/${catSlug}/page/${i}/`;
+          if (i === 1 || i === totalPages) { categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`; }
+          else if (i >= page - range && i <= page + range) { categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`; }
+          else if (i === page - range - 1 || i === page + range + 1) { categoryHtml += `<span style="color: var(--muted); padding: 0 4px; font-weight: 500;">...</span>`; }
+        }
+        if (page < totalPages) {
+          categoryHtml += `<a href="/category/${catSlug}/page/${page + 1}/" class="nav-arrow arrow-next" title="Следующая страница">&rarr;</a>`;
+          categoryHtml += `<a href="/category/${catSlug}/page/${totalPages}/" class="nav-arrow arrow-end" title="В конец">&#10219;</a>`;
+        }
+        categoryHtml += `</div>`;
+      }
+      categoryHtml += `</main></body></html>`;
+      return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
+    }
+
+    
 // Если это путь без расширения и не главная, отдаем Vercel 404
 if (!urlPath.includes('.') && urlPath !== '/') { return sendVercel404(); }
 // Блокируем явный системный мусор
