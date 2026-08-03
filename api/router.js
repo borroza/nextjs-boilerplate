@@ -256,18 +256,28 @@ headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
 });
 const relatedData = await relatedResponse.json();
     
-    let sidebarLinksHtml = '';
+      let sidebarLinksHtml = '';
     let readAlsoCardsHtml = '';
 
     if (Array.isArray(relatedData) && relatedData.length > 0) {
       relatedData.forEach((p, index) => {
         const h1Match = p.html_content ? p.html_content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) : null;
-        const title = h1Match && h1Match[1] ? h1Match[1].replace(/<[^>]*>/g, '').trim() : 'Читать статью';
+        const title = h1Match && h1Match ? h1Match[1].replace(/<[^>]*>/g, '').trim() : 'Читать статью';
 
+        // 1. Формируем ссылки для сайдбара (согласно селекторам .related вашего CSS)
         if (index < 5) { 
           sidebarLinksHtml += `<li><a href="${p.url_path}">${title}</a></li>`; 
         }
-        readAlsoCardsHtml += `<div class="article-card"><div class="card-icon">📄</div><div class="card-body"><small>${currentCategory || ''}</small><br><a href="${p.url_path}"><strong>${title}</strong></a></div></div>`;
+        
+        // 2. Формируем карточки "Читайте также" (строго под классы .article-card и .card-body вашего CSS)
+        readAlsoCardsHtml += `
+          <div class="article-card">
+            <div class="card-icon">📄</div>
+            <div class="card-body">
+              <small style="color: var(--primary); font-weight: 600; text-transform: uppercase; font-size: 11px;">${currentCategory || ''}</small>
+              <h4 style="margin: 4px 0 0; font-size: 16px;"><a href="${p.url_path}" style="color: var(--text); text-decoration: none; font-weight: 700;">${title}</a></h4>
+            </div>
+          </div>`;
       });
     } else {
       sidebarLinksHtml = '<li>Похожих статей пока нет</li>';
@@ -277,6 +287,12 @@ const relatedData = await relatedResponse.json();
     // Подставляем сформированные блоки рекомендаций в HTML статьи
     htmlContent = htmlContent.replace(/<ul id="dynamicRelatedList">([\s\S]*?)<\/ul>/i, `<ul id="dynamicRelatedList">${sidebarLinksHtml}</ul>`);
     htmlContent = htmlContent.replace(/<div class="list-grid" id="dynamicGridReadAlso">([\s\S]*?)<\/div>/i, `<div class="list-grid" id="dynamicGridReadAlso">${readAlsoCardsHtml}</div>`);
+    
+    // Синхронизируем подвал: заменяем старый класс .footer на заложенный в CSS .site-footer и .copyright
+    htmlContent = htmlContent.replace(/<footer class="footer">/gi, '<footer class="site-footer"><div class="container footer-inner">');
+    htmlContent = htmlContent.replace(/<div class="footer-copy">/gi, '</div><div class="copyright">');
+    
+    // Заменяем глобальный тег текущего года
     htmlContent = htmlContent.replaceAll('[CURRENT_YEAR]', new Date().getFullYear().toString());
 
     // ==========================================
@@ -313,4 +329,5 @@ const relatedData = await relatedResponse.json();
     return res.status(500).send('Internal Error: ' + err.message);
   }
 }
+
 
