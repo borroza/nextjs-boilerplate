@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    // Инициализируем клиент
+    // Инициализируем клиент Supabase
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 1. ОТДАЧА ROBOTS.TXT
@@ -178,7 +178,7 @@ if (html.includes('<h1')) {
 const matchH1 = html.match(/<h1[^>]>([\s\S]?)</h1>/i);
 if (matchH1 && matchH1[1]) { title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim(); }
 }
-if (!title) { title = Полезный material №${offset + index + 1}; }
+if (!title) { title = Полезный материал №${offset + index + 1}; }
 let description = '';
 if (html.includes('<p')) {
 const matchP = html.match(/<p[^>]>([\s\S]?)</p>/i);
