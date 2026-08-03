@@ -12,9 +12,12 @@ module.exports = async function handler(req, res) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    // МГНОВЕННЫЙ ПЕРЕХВАТ СТИЛЕЙ ДО ЛЮБОЙ ОЧИСТКИ ПУТЕЙ И МАССИВОВ ⚡
+       // МГНОВЕННЫЙ МУЛЬТИСАЙТОВЫЙ ПЕРЕХВАТ СТИЛЕЙ ДО ОЧИСТКИ ПУТЕЙ ⚡
     if (fullUrl.includes('style.css') || (req.query && req.query.path && req.query.path.includes('style.css'))) {
-      const cssUrl = `${supabaseUrl}/rest/v1/sites?id=eq.1&select=css_content`;
+      const currentDomain = req.headers.host || '';
+      
+      // Ищем в Supabase строку сайта, у которой домен совпадает с текущим запросом
+      const cssUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=css_content`;
       const cssResponse = await fetch(cssUrl, {
         method: 'GET',
         headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
@@ -27,6 +30,7 @@ module.exports = async function handler(req, res) {
         .setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=600')
         .send(actualCss);
     }
+
 
     // Защита от дублей
     if (fullUrl.includes('//')) {
