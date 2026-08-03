@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-client';
+
 export default async function handler(req, res) {
   // Универсальная функция, которая выводит ТОЧНУЮ копию фирменной страницы 404 Vercel
   const sendVercel404 = () => {
@@ -8,7 +10,7 @@ export default async function handler(req, res) {
 
   try {
     const fullUrl = req.url || '';
-    
+
     // Защита от дублей
     if (fullUrl.includes('//')) {
       return sendVercel404();
@@ -27,6 +29,9 @@ export default async function handler(req, res) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+    // Инициализируем клиент внутри обработчика
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
     // 1. ОТДАЧА ROBOTS.TXT
     if (urlPath === '/robots.txt') {
       const robotsTxt = `User-agent: *\nAllow: /\n\nSitemap: ${protocol}://${currentDomain}/sitemap.xml`;
@@ -43,12 +48,11 @@ export default async function handler(req, res) {
       const siteData = await siteResponse.json();
 
       let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://sitemaps.org">\n`;
-      xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
-
+      
       if (Array.isArray(siteData) && siteData.length > 0) {
         const currentSiteId = siteData[0].id;
         const pagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug,created_at&order=created_at.desc&limit=50000`;
-        
+
         const pagesResponse = await fetch(pagesUrl, {
           method: 'GET',
           headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
@@ -91,7 +95,7 @@ export default async function handler(req, res) {
       headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
     });
     const siteData = await siteResponse.json();
-    
+
     if (!Array.isArray(siteData) || siteData.length === 0) {
       return sendVercel404();
     }
@@ -103,372 +107,194 @@ export default async function handler(req, res) {
     // ДИНАМИЧЕСКАЯ ОТДАЧА СТИЛЕЙ КУДА ССЫЛАЕТСЯ HTML СТАТЬИ ⚡
     if (urlPath === '/static/css/style.css') {
       return res.status(200)
-                .setHeader('Content-Type', 'text/css; charset=utf-8')
-                .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
-                .send(siteCss);
+        .setHeader('Content-Type', 'text/css; charset=utf-8')
+        .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
+        .send(siteCss);
     }
 
-         // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
-  if (urlPath.startsWith('/category/')) {
-    let targetPath = urlPath;
-    
-    if (targetPath.endsWith('/')) {
-      targetPath = targetPath.slice(0, -1);
-    }
+    // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
+    if (urlPath.startsWith('/category/')) {
+      let targetPath = urlPath;
 
-    let currentCategorySlug = targetPath.replace('/category/', '');
-    const PAGE_SIZE = 20;
-    let page = 1;
-
-    if (targetPath.indexOf('/page/') !== -1) {
-      const parts = targetPath.split('/page/');
-      const firstPart = parts[0] || ''; 
-      const secondPart = parts[1] || '';
-      
-      currentCategorySlug = firstPart.replace('/category/', '');
-      page = parseInt(secondPart) || 1;
-    }
-
-    if (!currentCategorySlug) {
-      return sendVercel404();
-    }
-
-    const categoryTitles = {
-      'avtomobil': 'Автомобиль',
-      'avtoelektrik': 'Автоэлектрик',
-      'antifriz': 'Антифриз',
-      'bamper': 'Бампер',
-      'generator': 'Генератор',
-      'dvigatel': 'Двигатель',
-      'zamena': 'Замена',
-      'kolodki': 'Колодки',
-      'korobka': 'Коробка',
-      'kuzov': 'Кузов',
-      'maslo': 'Масло',
-      'pokraska': 'Покраска',
-      'raznoe': 'Разное',
-      'remen': 'Ремень',
-      'remont': 'Ремонт',
-      'shod-razval': 'Сходразвал',
-      'turbina': 'Турбина',
-      'forsunki': 'Форсунки'
-    };
-
-    let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()];
-    if (!russianCategoryTitle) {
-      const rawTitle = currentCategorySlug.split('-').join(' ');
-      russianCategoryTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1).toLowerCase();
-    }
-
-    const offset = (page - 1) * PAGE_SIZE;
-
-    const categoryPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategorySlug)}&select=url_path,html_content&limit=${PAGE_SIZE}&offset=${offset}`;
-    
-    const catResponse = await fetch(categoryPagesUrl, {
-      method: 'GET',
-      headers: { 
-        'apikey': supabaseKey, 
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Prefer': 'count=exact' 
-      }
-    });
-    const catPages = await catResponse.json();
-
-    if (!Array.isArray(catPages) || catPages.length === 0) {
-      return sendVercel404();
-    }
-
-    const contentRange = catResponse.headers.get('content-range') || '';
-    const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
-
-    let categoryHtml = `<!DOCTYPE html><html lang="ru">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${russianCategoryTitle} | ${siteTitle}</title>
-      <style>
-        ${siteCss}
-        .pagination a.nav-arrow { font-size: 18px; font-weight: 400; transition: transform 0.2s ease, color 0.2s; }
-        .pagination a.arrow-start:hover { transform: translateX(-4px); }
-        .pagination a.arrow-prev:hover { transform: translateX(-3px); }
-        .pagination a.arrow-next:hover { transform: translateX(3px); }
-        .pagination a.arrow-end:hover { transform: translateX(4px); }
-      </style>
-    </head>
-    <body>
-      <div class="topbar"></div>
-      <header class="site-header">
-        <div class="container header-inner">
-          <a href="/" class="logo">
-            <span class="logo-icon">${siteIcon}</span> ${siteTitle}
-          </a>
-        </div>
-      </header>
-      
-      <div class="breadcrumbs">
-        <div class="container">
-          <a href="/">Главная</a> <strong>/</strong> <strong>${russianCategoryTitle}</strong>
-        </div>
-      </div>
-      
-      <main class="container" style="padding: 40px 0;">
-        <div class="cat-hero">
-          <span>🛠</span>
-          <h1>${russianCategoryTitle}</h1>
-        </div>
-        
-        <div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
-
-    catPages.forEach((pageItem, index) => {
-      const html = pageItem.html_content || '';
-      
-      let title = '';
-      if (html.includes('<h1')) {
-        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-        if (matchH1 && matchH1[1]) {
-          title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim();
-        }
-      }
-      if (!title) {
-        const globalIndex = offset + index + 1;
-        title = `Полезный материал №${globalIndex}`;
+      if (targetPath.endsWith('/')) {
+        targetPath = targetPath.slice(0, -1);
       }
 
-      let description = '';
-      if (html.includes('<p')) {
-        const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-        if (matchP && matchP[1]) {
-          const cleanP = String(matchP[1]).replace(/<[^>]*>/g, '').trim();
-          
-          if (cleanP.length > 15) {
-            if (cleanP.length > 300) {
-              let subStr = cleanP.substring(0, 350);
-              const lastDot = subStr.substring(0, 320).lastIndexOf('.');
-              const lastExcl = subStr.substring(0, 320).lastIndexOf('!');
-              const lastQuest = subStr.substring(0, 320).lastIndexOf('?');
-              const lastSign = Math.max(lastDot, lastExcl, lastQuest);
+      let currentCategorySlug = targetPath.replace('/category/', '');
+      const PAGE_SIZE = 20;
+      let page = 1;
 
-              if (lastSign > 40) {
-                description = subStr.substring(0, lastSign + 1).trim();
-              } else {
-                const lastSpace = subStr.substring(0, 300).lastIndexOf(' ');
-                description = lastSpace > 40 ? subStr.substring(0, lastSpace).trim() : subStr.substring(0, 300).trim();
-              }
-            } else {
-              description = cleanP;
-            }
-          }
-        }
+      if (targetPath.indexOf('/page/') !== -1) {
+        const parts = targetPath.split('/page/');
+        const firstPart = parts[0] || ''; 
+        const secondPart = parts[1] || '';
+
+        currentCategorySlug = firstPart.replace('/category/', '');
+        page = parseInt(secondPart) || 1;
       }
 
-      if (!description) {
-        description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.';
+      if (!currentCategorySlug) {
+        return sendVercel404();
       }
 
-      const fixedPath = pageItem.url_path.startsWith('/') ? pageItem.url_path : `/${pageItem.url_path}`;
-      
-      categoryHtml += `
-        <article class="article-card">
-          <div class="card-icon">📄</div>
-          <div class="card-body">
-            <h2 style="margin:0 0 6px; font-size:20px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2>
-            <p style="margin:0; color:var(--muted); font-size:14px; line-height:1.5;">${description}</p>
-          </div>
-        </article>`;
-    });
+      const categoryTitles = {
+        'avtomobil': 'Автомобиль', 'avtoelektrik': 'Автоэлектрик', 'antifriz': 'Антифриз',
+        'bamper': 'Бампер', 'generator': 'Генератор', 'dvigatel': 'Двигатель',
+        'zamena': 'Замена', 'kolodki': 'Колодки', 'korobka': 'Коробка',
+        'kuzov': 'Кузов', 'maslo': 'Масло', 'pokraska': 'Покраска',
+        'raznoe': 'Разное', 'remen': 'Ремень', 'remont': 'Ремонт',
+        'shod-razval': 'Сходразвал', 'turbina': 'Турбина', 'forsunki': 'Форсунки'
+      };
 
-    categoryHtml += `</div>`;
-
-    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-    if (totalPages > 1) {
-      categoryHtml += `<div class="pagination" style="display: flex; gap: 8px; margin-top: 40px; justify-content: center; align-items: center; flex-wrap: wrap;">`;
-      
-      const catSlug = currentCategorySlug;
-
-      if (page > 1) {
-        categoryHtml += `<a href="/category/${catSlug}/" class="nav-arrow arrow-start" title="В начало">&#10218;</a>`;
-        const prevPageUrl = (page - 1) === 1 ? `/category/${catSlug}/` : `/category/${catSlug}/page/${page - 1}/`;
-        categoryHtml += `<a href="${prevPageUrl}" class="nav-arrow arrow-prev" title="Предыдущая страница">&larr;</a>`;
+      let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()];
+      if (!russianCategoryTitle) {
+        const rawTitle = currentCategorySlug.split('-').join(' ');
+        russianCategoryTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1).toLowerCase();
       }
 
-      const range = 2; 
-      for (let i = 1; i <= totalPages; i++) {
-        const isActive = i === page;
-        const pageUrl = i === 1 ? `/category/${catSlug}/` : `/category/${catSlug}/page/${i}/`;
+      const offset = (page - 1) * PAGE_SIZE;
 
-        if (i === 1 || i === totalPages) {
-          categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
-        }
-        else if (i >= page - range && i <= page + range) {
-          categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
-        }
-        else if (i === page - range - 1) {
-          categoryHtml += `<span style="color: var(--muted); padding: 0 4px; font-weight: 500;">...</span>`;
-        }
-        else if (i === page + range + 1) {
-          categoryHtml += `<span style="color: var(--muted); padding: 0 4px; font-weight: 500;">...</span>`;
-        }
-      }
+      const categoryPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategorySlug)}&select=url_path,html_content&limit=${PAGE_SIZE}&offset=${offset}`;
 
-      if (page < totalPages) {
-        const nextPageUrl = `/category/${catSlug}/page/${page + 1}/`;
-        categoryHtml += `<a href="${nextPageUrl}" class="nav-arrow arrow-next" title="Следующая страница">&rarr;</a>`;
-        const lastPageUrl = `/category/${catSlug}/page/${totalPages}/`;
-        categoryHtml += `<a href="${lastPageUrl}" class="nav-arrow arrow-end" title="В конец">&#10219;</a>`;
-      }
-      
-      categoryHtml += `</div>`;
-    }
-
-    categoryHtml += `</main></body></html>`;
-    return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
-  }
-
-    // Если это путь без расширения и не главная, отдаем Vercel 404
-    if (!urlPath.includes('.') && urlPath !== '/') {
-      return sendVercel404();
-    }
-
-      // Блокируем явный системный мусор
-    const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
-    const hasSystemExtension = systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext));
-    if (hasSystemExtension) {
-      return sendVercel404();
-    }
-
-    // 4. ОТДАЧА СТАТЬИ ИЗ БАЗЫ
-    // Скачиваем саму статью
-    const targetUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content`;
-    const response = await fetch(targetUrl, {
-      method: 'GET',
-      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-    });
-    const data = await response.json();
-
-    if (!Array.isArray(data) || data.length === 0) {
-      return sendVercel404();
-    }
-
-    let htmlContent = data[0].html_content;
-
-    // ВАЖНО: Параллельно скачиваем из базы названия и пути ВСЕХ статей этого сайта для мгновенного поиска
-    const allPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content&limit=1000`;
-    const allPagesResponse = await fetch(allPagesUrl, {
-      method: 'GET',
-      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-    });
-    const allPagesData = await allPagesResponse.json();
-
-    let searchDatabase = [];
-    if (Array.isArray(allPagesData)) {
-      allPagesData.forEach(p => {
-        // Забираем только статьи, пропускаем служебные страницы
-        if (p.url_path.includes('.') || p.url_path.endsWith('.html')) {
-          let title = p.url_path;
-          // Пытаемся вытащить реальный русский заголовок H1 статьи для красивого вывода в поиске
-          if (p.html_content && p.html_content.includes('<h1')) {
-            const matchH1 = p.html_content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-            if (matchH1 && matchH1[1]) {
-              title = matchH1[1].replace(/<[^>]*>/g, '').trim();
-            }
-          }
-          searchDatabase.push({ name: title, path: p.url_path });
-        }
+      const catResponse = await fetch(categoryPagesUrl, {
+        method: 'GET',
+        headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Prefer': 'count=exact' }
       });
-    }
+      const catPages = await catResponse.json();
 
-    // Внедряем JavaScript-скрипт с уже готовой базой статей внутри
-    const jsScripts = `
-    <script>
-      document.addEventListener("DOMContentLoaded", function() {
-        // 1. Плавный скролл содержания по заголовкам H2
-        const contentLinks = document.querySelectorAll('details ol li a[href^="#"]');
-        const articleHeaders = document.querySelectorAll('.article-body h2, .article h2, article h2');
+      if (!Array.isArray(catPages) || catPages.length === 0) {
+        return sendVercel404();
+      }
 
-        contentLinks.forEach((anchor, index) => {
-          anchor.addEventListener('click', function (e) {
-            e.preventDefault();
-            const targetElement = articleHeaders[index];
-            if (targetElement) {
-              targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              const targetId = this.getAttribute('href').substring(1);
-              window.history.pushState(null, null, '#' + targetId);
-            }
-          });
-        });
+      const contentRange = catResponse.headers.get('content-range') || '';
+      const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
-        // База данных для поиска, сгенерированная сервером на лету
-        const allArticles = ${JSON.stringify(searchDatabase)};
-
-        // 2. ЖИВОЙ ВЫПАДАЮЩИЙ ПОИСК
-        const searchInput = document.getElementById('globalSearchInput') || document.querySelector('input[type="search"]');
-        const searchDropdown = document.getElementById('globalSearchDropdown') || document.querySelector('.search-dropdown');
-
-        if (searchInput && searchDropdown) {
-          searchDropdown.style.display = 'none';
-          searchDropdown.style.position = 'absolute';
-          searchDropdown.style.backgroundColor = '#fff';
-          searchDropdown.style.border = '1px solid #e2e8f0';
-          searchDropdown.style.borderRadius = '8px';
-          searchDropdown.style.width = searchInput.offsetWidth + 'px';
-          searchDropdown.style.maxHeight = '300px';
-          searchDropdown.style.overflowY = 'auto';
-          searchDropdown.style.zIndex = '999';
-          searchDropdown.style.boxShadow = '0 10px 15px -3px rgba(0,0,0,0.1)';
-
-          searchInput.addEventListener('input', function() {
-            const query = this.value.trim().toLowerCase();
-            searchDropdown.innerHTML = '';
-            
-            if (query.length < 2) {
-              searchDropdown.style.display = 'none';
-              return;
-            }
-
-            const filtered = allArticles.filter(art => art.name.toLowerCase().includes(query)).slice(0, 5);
-
-            if (filtered.length > 0) {
-              filtered.forEach(art => {
-                const item = document.createElement('a');
-                item.href = art.path.startsWith('/') ? art.path : '/' + art.path;
-                item.className = 'search-item';
-                item.style.display = 'block';
-                item.style.padding = '10px 15px';
-                item.style.color = '#1e293b';
-                item.style.textDecoration = 'none';
-                item.style.borderBottom = '1px solid #f1f5f9';
-                item.style.fontSize = '14px';
-                item.innerHTML = '📄 ' + art.name;
-                
-                item.addEventListener('mouseover', () => item.style.backgroundColor = '#f1f5f9');
-                item.addEventListener('mouseout', () => item.style.backgroundColor = '#fff');
-                
-                searchDropdown.appendChild(item);
-              });
-              searchDropdown.style.display = 'block';
-            } else {
-              searchDropdown.innerHTML = '<div style="padding: 10px 15px; color: #64748b; font-size: 14px;">Ничего не найдено</div>';
-              searchDropdown.style.display = 'block';
-            }
-          });
-
-          document.addEventListener('click', function(e) {
-            if (e.target !== searchInput && e.target !== searchDropdown) {
-              searchDropdown.style.display = 'none';
-            }
-          });
-        }
-      });
-    </script>
-    </body>`;
-
-    // Принудительно склеиваем текст статьи и наш JavaScript
-    htmlContent = htmlContent + jsScripts;
-
-    return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
-
-  } catch (err) {
-    return res.status(500).send('Internal Error: ' + err.message);
-  }
+let categoryHtml = <!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title><style>${siteCss}.pagination a.nav-arrow { font-size: 18px; font-weight: 400; transition: transform 0.2s ease, color 0.2s; }.pagination a.arrow-start:hover { transform: translateX(-4px); }.pagination a.arrow-prev:hover { transform: translateX(-3px); }.pagination a.arrow-next:hover { transform: translateX(3px); }.pagination a.arrow-end:hover { transform: translateX(4px); }</style></head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <strong>/</strong> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><span>🛠</span><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">
+;
+catPages.forEach((pageItem, index) => {
+const html = pageItem.html_content || '';
+let title = '';
+if (html.includes('<h1')) {
+const matchH1 = html.match(/<h1[^>]>([\s\S]?)</h1>/i);
+if (matchH1 && matchH1[1]) { title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim(); }
 }
-
+if (!title) { title = Полезный материал №${offset + index + 1}; }
+let description = '';
+if (html.includes('<p')) {
+const matchP = html.match(/<p[^>]>([\s\S]?)</p>/i);
+if (matchP && matchP[1]) {
+const cleanP = String(matchP[1]).replace(/<[^>]*>/g, '').trim();
+if (cleanP.length > 15) {
+if (cleanP.length > 300) {
+let subStr = cleanP.substring(0, 350);
+const lastSign = Math.max(subStr.substring(0, 320).lastIndexOf('.'), subStr.substring(0, 320).lastIndexOf('!'), subStr.substring(0, 320).lastIndexOf('?'));
+description = lastSign > 40 ? subStr.substring(0, lastSign + 1).trim() : subStr.substring(0, 300).trim() + '...';
+} else { description = cleanP; }
+}
+}
+}
+if (!description) { description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.'; }
+const fixedPath = pageItem.url_path.startsWith('/') ? pageItem.url_path : /${pageItem.url_path};
+categoryHtml += <article class="article-card"><div class="card-icon">📄</div><div class="card-body"><h2 style="margin:0 0 6px; font-size:20px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2><p style="margin:0; color:var(--muted); font-size:14px; line-height:1.5;">${description}</p></div></article>;
+});
+categoryHtml += </div>;
+const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+if (totalPages > 1) {
+categoryHtml += <div class="pagination" style="display: flex; gap: 8px; margin-top: 40px; justify-content: center; align-items: center; flex-wrap: wrap;">;
+const catSlug = currentCategorySlug;
+if (page > 1) {
+categoryHtml += <a href="/category/${catSlug}/" class="nav-arrow arrow-start" title="В начало">&#10218;</a>;
+const prevPageUrl = (page - 1) === 1 ? /category/${catSlug}/ : /category/${catSlug}/page/${page - 1}/;
+categoryHtml += <a href="${prevPageUrl}" class="nav-arrow arrow-prev" title="Предыдущая страница">&larr;</a>;
+}
+const range = 2;
+for (let i = 1; i <= totalPages; i++) {
+const isActive = i === page;
+const pageUrl = i === 1 ? /category/${catSlug}/ : /category/${catSlug}/page/${i}/;
+if (i === 1 || i === totalPages) { categoryHtml += <a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>; }
+else if (i >= page - range && i <= page + range) { categoryHtml += <a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>; }
+else if (i === page - range - 1 || i === page + range + 1) { categoryHtml += <span style="color: var(--muted); padding: 0 4px; font-weight: 500;">...</span>; }
+}
+if (page < totalPages) {
+categoryHtml += <a href="/category/${catSlug}/page/${page + 1}/" class="nav-arrow arrow-next" title="Следующая страница">&rarr;</a>;
+categoryHtml += <a href="/category/${catSlug}/page/${totalPages}/" class="nav-arrow arrow-end" title="В конец">&#10219;</a>;
+}
+categoryHtml += </div>;
+}
+categoryHtml += </main></body></html>;
+return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
+}
+// Если это путь без расширения и не главная, отдаем Vercel 404
+if (!urlPath.includes('.') && urlPath !== '/') { return sendVercel404(); }
+// Блокируем явный системный мусор
+const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
+if (systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext))) { return sendVercel404(); }
+// 4. ОТДАЧА СТАТЬИ ИЗ БАЗЫ
+const targetUrl = ${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content,category_slug,id;
+const response = await fetch(targetUrl, {
+method: 'GET',
+headers: { 'apikey': supabaseKey, 'Authorization': Bearer ${supabaseKey} }
+});
+const data = await response.json();
+if (!Array.isArray(data) || data.length === 0) { return sendVercel404(); }
+let htmlContent = data[0].html_content;
+const currentCategory = data[0].category_slug;
+const currentPageId = data[0].id;
+// ==========================================
+// НОВАЯ ИНЪЕКЦИЯ: ИСПРАВЛЕНИЕ ТАБЛИЦ И БЛОКИ РЕКОМЕНДАЦИЙ
+// ==========================================
+// Лечим таблицы под адаптивный CSS
+htmlContent = htmlContent.replace(/<table([^>]*?)>/gi, '').replace(/</table>/gi, '');
+// Тянем из базы до 6 похожих статей для блоков рекомендаций
+const relatedUrl = ${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategory)}&id=neq.${currentPageId}&select=url_path,html_content&limit=6;
+const relatedResponse = await fetch(relatedUrl, {
+method: 'GET',
+headers: { 'apikey': supabaseKey, 'Authorization': Bearer ${supabaseKey} }
+});
+const relatedData = await relatedResponse.json();
+let sidebarLinksHtml = '';
+let readAlsoCardsHtml = '';
+if (Array.isArray(relatedData) && relatedData.length > 0) {
+relatedData.forEach((p, index) => {
+const h1Match = p.html_content ? p.html_content.match(/<h1[^>]>([\s\S]?)</h1>/i) : null;
+const title = h1Match && h1Match[1] ? h1Match[1].replace(/<[^>]*>/g, '').trim() : 'Читать статью';
+if (index < 5) { sidebarLinksHtml += <li><a href="${p.url_path}">${title}</a></li>; }
+readAlsoCardsHtml += <div class="article-card"><div class="card-icon">📄</div><div class="card-body"><small>${currentCategory || ''}</small><br><a href="${p.url_path}"><strong>${title}</strong></a></div></div>;
+});
+} else {
+sidebarLinksHtml = 'Похожих статей пока нет';
+readAlsoCardsHtml = 'В этой категории пока нет других публикаций.';
+}
+// Подставляем сформированные блоки рекомендаций в HTML статьи
+htmlContent = htmlContent.replace(/([\s\S]?)</ul>/i, <ul id="dynamicRelatedList">${sidebarLinksHtml}</ul>);
+htmlContent = htmlContent.replace(/([\s\S]?)</div>/i, <div class="list-grid" id="dynamicGridReadAlso">${readAlsoCardsHtml}</div>);
+htmlContent = htmlContent.replaceAll('[CURRENT_YEAR]', new Date().getFullYear().toString());
+// ==========================================
+// ВОЗВРАТ ОРИГИНАЛЬНОГО ЖИВОГО ПОИСКА И СКРОЛЛА
+// ==========================================
+const allPagesUrl = ${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content&limit=1000;
+const allPagesResponse = await fetch(allPagesUrl, {
+method: 'GET',
+headers: { 'apikey': supabaseKey, 'Authorization': Bearer ${supabaseKey} }
+});
+const allPagesData = await allPagesResponse.json();
+let searchDatabase = [];
+if (Array.isArray(allPagesData)) {
+allPagesData.forEach(p => {
+if (p.url_path.includes('.') || p.url_path.endsWith('.html')) {
+let title = p.url_path;
+if (p.html_content && p.html_content.includes('<h1')) {
+const matchH1 = p.html_content.match(/<h1[^>]>([\s\S]?)</h1>/i);
+if (matchH1 && matchH1[1]) { title = matchH1[1].replace(/<[^>]*>/g, '').trim(); }
+}
+searchDatabase.push({ name: title, path: p.url_path });
+}
+});
+}
+const jsScripts = <script>document.addEventListener("DOMContentLoaded",function(){const contentLinks=document.querySelectorAll('details ol li a[href^="#"]');const articleHeaders=document.querySelectorAll('.article-body h2, .article h2, article h2');contentLinks.forEach((anchor,index)=>{anchor.addEventListener('click',function(e){e.preventDefault();const targetElement=articleHeaders[index];if(targetElement){targetElement.scrollIntoView({behavior:'smooth',block:'start'});const targetId=this.getAttribute('href').substring(1);window.history.pushState(null,null,'#'+targetId);}});});const allArticles=${JSON.stringify(searchDatabase)};const searchInput=document.getElementById('globalSearchInput')||document.querySelector('input[type="search"]');const searchDropdown=document.getElementById('globalSearchDropdown')||document.querySelector('.search-dropdown');if(searchInput&&searchDropdown){searchDropdown.style.display='none';searchDropdown.style.position='absolute';searchDropdown.style.backgroundColor='#fff';searchDropdown.style.border='1px solid #e2e8f0';searchDropdown.style.borderRadius='8px';searchDropdown.style.width=searchInput.offsetWidth+'px';searchDropdown.style.maxHeight='300px';searchDropdown.style.overflowY='auto';searchDropdown.style.zIndex='999';searchDropdown.style.boxShadow='0 10px 15px -3px rgba(0,0,0,0.1)';searchInput.addEventListener('input',function(){const query=this.value.trim().toLowerCase();searchDropdown.innerHTML='';if(query.length<2){searchDropdown.style.display='none';return;}const filtered=allArticles.filter(art=>art.name.toLowerCase().includes(query)).slice(0,5);if(filtered.length>0){filtered.forEach(art=>{const item=document.createElement('a');item.href=art.path.startsWith('/')?art.path:'/'+art.path;item.className='search-item';item.style.display='block';item.style.padding='10px 15px';item.style.color='#1e293b';item.style.textDecoration='none';item.style.borderBottom='1px solid #f1f5f9';item.style.fontSize='14px';item.innerHTML='📄 '+art.name;item.addEventListener('mouseover',()=>item.style.backgroundColor='#f1f5f9');item.addEventListener('mouseout',()=>item.style.backgroundColor='#fff');searchDropdown.appendChild(item);});searchDropdown.style.display='block';}else{searchDropdown.innerHTML='<div style="padding: 10px 15px; color: #64748b; font-size: 14px;">Ничего не найдено</div>';searchDropdown.style.display='block';}});document.addEventListener('click',function(e){if(e.target!==searchInput&&e.target!==searchDropdown){searchDropdown.style.display='none';}});}});\n</script></body>;
+htmlContent = htmlContent + jsScripts;
+return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(htmlContent);
+} catch (err) {
+return res.status(500).send('Internal Error: ' + err.message);
+}
+}
