@@ -243,7 +243,11 @@ module.exports = async function handler(req, res) {
         categoryHtml += `</div>`;
       }
       categoryHtml += `</main></body></html>`;
-      return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=600').send(categoryHtml);
+      // СТАЛО
+return res.status(200)
+  .setHeader('Content-Type', 'text/html; charset=utf-8')
+  .setHeader('Cache-Control', 'public, max-age=60, s-maxage=600, stale-while-revalidate=86400')
+  .send(categoryHtml);
     }
 
     
