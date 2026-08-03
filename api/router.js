@@ -236,7 +236,7 @@ if (!urlPath.includes('.') && urlPath !== '/') { return sendVercel404(); }
 const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
 if (systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext))) { return sendVercel404(); }
 // 4. ОТДАЧА СТАТЬИ ИЗ БАЗЫ
-const targetUrl = ${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content,category_slug,id;
+const targetUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content,category_slug,id`;
 const response = await fetch(targetUrl, {
 method: 'GET',
 headers: { 'apikey': supabaseKey, 'Authorization': Bearer ${supabaseKey} }
@@ -254,7 +254,7 @@ const currentPageId = data[0].id;
 htmlContent = htmlContent.replace(/<table([^>]*?)>/gi, '<div class="table-wrap"><table>').replace(/<\/table>/gi, '</table></div>');
 
 // Тянем из базы до 6 похожих статей для блоков рекомендаций
-const relatedUrl = ${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategory)}&id=neq.${currentPageId}&select=url_path,html_content&limit=6;
+const relatedUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategory)}&id=neq.${currentPageId}&select=url_path,html_content&limit=6`;
 const relatedResponse = await fetch(relatedUrl, {
 method: 'GET',
 headers: { 'apikey': supabaseKey, 'Authorization': Bearer ${supabaseKey} }
