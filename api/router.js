@@ -19,6 +19,8 @@ module.exports = async function handler(req, res) {
 
     const urlParts = fullUrl.split('?');
     let urlPath = urlParts[0]; // Чистый путь
+    let urlPath = urlParts[0]; // Выбираем именно первый элемент (чистый путь)
+
 
     if (urlPath.endsWith('/') && urlPath.length > 1) {
       urlPath = urlPath.slice(0, -1);
@@ -241,6 +243,7 @@ if (!Array.isArray(data) || data.length === 0) { return sendVercel404(); }
 let htmlContent = data[0].html_content;
 const currentCategory = data[0].category_slug;
 const currentPageId = data[0].id;
+
 // ==========================================
 // ИСПРАВЛЕНИЕ ТАБЛИЦ И БЛОКИ РЕКОМЕНДАЦИЙ
 // ==========================================
