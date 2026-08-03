@@ -34,6 +34,23 @@ module.exports = async function handler(req, res) {
       return res.status(200).setHeader('Content-Type', 'text/plain; charset=utf-8').send(robotsTxt);
     }
 
+      // ДИНАМИЧЕСКАЯ ОТДАЧА СТИЛЕЙ КУДА ССЫЛАЕТСЯ HTML СТАТЬИ ⚡
+  if (urlPath === '/static/css/style.css') {
+    const cssUrl = `${supabaseUrl}/rest/v1/sites?id=eq.1&select=css_content`;
+    const cssResponse = await fetch(cssUrl, {
+      method: 'GET',
+      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+    });
+    const cssData = await cssResponse.json();
+    const actualCss = Array.isArray(cssData) && cssData.length > 0 ? cssData[0].css_content : '';
+
+    return res.status(200)
+      .setHeader('Content-Type', 'text/css; charset=utf-8')
+      .setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=600')
+      .send(actualCss);
+  }
+
+
     // 2. УМНАЯ ГЕНЕРАЦИЯ SITEMAP.XML
     if (urlPath === '/sitemap.xml') {
       const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
