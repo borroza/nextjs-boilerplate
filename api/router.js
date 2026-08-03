@@ -393,10 +393,12 @@ document.addEventListener("DOMContentLoaded", function() {
 
   htmlContent = htmlContent + jsScripts;
 
-  return res.status(200)
+   return res.status(200)
     .setHeader('Content-Type', 'text/html; charset=utf-8')
     .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
     .send(htmlContent);
 
-
-
+  } catch (err) {
+    return res.status(500).send('Internal Error: ' + err.message);
+  }
+};
