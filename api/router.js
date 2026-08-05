@@ -2,7 +2,7 @@ module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
     const currentDomain = (req.headers.host || '').trim();
 
-    // 1. МОЛНИЕНОСНЫЙ ПЕРЕХВАТЧИК ПОИСКА
+    // 1. ТОЧНЫЙ ПЕРЕХВАТЧИК ПОИСКА ДЛЯ SITE_ID = 3
     if (fullUrl.includes('/api/search-db') || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,8 +12,8 @@ module.exports = async function handler(req, res) {
                 return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
             }
 
-            // Сразу берем страницы из базы (без медленного предварительного поиска сайта по домену)
-            const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=200`, {
+            // Берем страницы конкретно для сайта с id = 3, который мы видим в базе
+            const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.3&select=url_path,category_slug,html_content&limit=500`, {
                 headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
             });
             
