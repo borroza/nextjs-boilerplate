@@ -1,14 +1,14 @@
 module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
 
-    // САМОЕ ПЕРВОЕ: Мультисайтовый перехват поиска /api/search-db с фильтрацией по домену
+    // ПРАВИЛЬНЫЙ МУЛЬТИСАЙТОВЫЙ ПОИСК СТРОГО ПО ДОМЕНУ БЕЗ КОСТЫЛЕЙ
     if (fullUrl.includes('/api/search-db') || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
             const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
             const currentDomain = req.headers.host || '';
 
-            // 1. Узнаем ID текущего сайта по домену
+            // 1. Ищем сайт строго по текущему домену
             const siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`, {
                 headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
             });
@@ -17,7 +17,7 @@ module.exports = async function handler(req, res) {
             if (Array.isArray(siteData) && siteData.length > 0) {
                 const currentSiteId = siteData[0].id;
 
-                // 2. Тянем страницы строго для этого сайта
+                // 2. Затягиваем страницы только для найденного сайта
                 const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content`, {
                     headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
                 });
