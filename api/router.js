@@ -1,50 +1,6 @@
 module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
 
-    // УНИВЕРСАЛЬНЫЙ МУЛЬТИСАЙТОВЫЙ ПОИСК ДЛЯ ЛЮБЫХ СТРАНИЦ И СОТЕН ДОМЕНОВ
-    if (fullUrl.includes('/api/search-db') || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
-        try {
-            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-            const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-            
-            const urlObj = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
-            const queryDomain = urlObj.searchParams.get('domain');
-            const currentDomain = queryDomain || req.headers.host || '';
-
-            const siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`, {
-                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-            });
-            const siteData = await siteRes.json();
-
-            if (!Array.isArray(siteData) || siteData.length === 0) {
-                return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
-            }
-
-            const currentSiteId = siteData[0].id;
-
-            const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content&limit=500`, {
-                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-            });
-            const pagesData = await pagesRes.json();
-
-            if (Array.isArray(pagesData)) {
-                const searchDb = pagesData.map(page => {
-                    let title = 'Без названия';
-                    const html = page.html_content || '';
-                    const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-                    if (matchH1 && matchH1[1]) {
-                        title = matchH1[1].replace(/<[^>]*>/g, '').trim();
-                    }
-                    return { name: title, path: page.url_path };
-                });
-                return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send(JSON.stringify(searchDb));
-            }
-            return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
-        } catch (e) {
-            return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
-        }
-    }
-
     const sendVercel404 = () => {
         const requestId = `arnl-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
         const vercelHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>404: NOT_FOUND</title><style>body{font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif;background:#fff;color:#000;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh}ul{list-style-type:none;padding:0}.container{max-width:500px;text-align:center;padding:20px;border:1px solid #eaeaea;border-radius:5px}h1{font-size:24px;font-weight:500;margin-top:0;margin-bottom:20px;border-bottom:1px solid #eaeaea;padding-bottom:20px}p{font-size:14px;color:#666;margin:10px 0;text-align:left}code{font-family:monospace;background:#fafafa;padding:3px 5px;border-radius:3px;border:1px solid #eaeaea}a{color:#0070f3;text-decoration:none;font-size:14px}a:hover{text-decoration:underline}</style></head><body><div class="container"><h1>404: NOT_FOUND</h1><p>Code: <code>"NOT_FOUND"</code></p><p>ID: <code>"${requestId}"</code></p><br><a href="https://vercel.com" target="_blank" rel="noopener noreferrer">Read our documentation to learn more about this error.</a></div></body></html>`;
@@ -56,6 +12,7 @@ module.exports = async function handler(req, res) {
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const currentDomain = req.headers.host || '';
 
+        // 1. ОТДАЧА СТИЛЕЙ ДО ОЧИСТКИ ПУТЕЙ
         if (fullUrl.includes('style.css') || (req.query && req.query.path && req.query.path.includes('style.css'))) {
             const cssUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=css_content`;
             const cssResponse = await fetch(cssUrl, {
@@ -68,6 +25,54 @@ module.exports = async function handler(req, res) {
                 .setHeader('Content-Type', 'text/css; charset=utf-8')
                 .setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=600')
                 .send(actualCss);
+        }
+
+        // 2. ОТДАЧА SEARCH-INDEX.JSON В СТИЛЕ КОНКУРЕНТА ПОД КАЖДЫЙ ДОМЕН
+        if (fullUrl.includes('search-index.json')) {
+            const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
+            const siteResponse = await fetch(siteCheckUrl, {
+                method: 'GET',
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            });
+            const siteData = await siteResponse.json();
+
+            if (Array.isArray(siteData) && siteData.length > 0) {
+                const currentSiteId = siteData[0].id;
+                const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug,html_content&limit=500`, {
+                    headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+                });
+                const pagesData = await pagesRes.json();
+
+                if (Array.isArray(pagesData)) {
+                    const searchDb = pagesData.map(page => {
+                        let title = 'Без названия';
+                        const html = page.html_content || '';
+                        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                        if (matchH1 && matchH1[1]) {
+                            title = matchH1[1].replace(/<[^>]*>/g, '').trim();
+                        }
+
+                        let description = '';
+                        const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+                        if (matchP && matchP[1]) {
+                            description = matchP[1].replace(/<[^>]*>/g, '').trim().substring(0, 150);
+                        }
+
+                        return {
+                            t: title,
+                            u: page.url_path.startsWith('/') ? page.url_path.slice(1) : page.url_path,
+                            c: page.category_slug || '',
+                            d: description,
+                            tags: page.category_slug || ''
+                        };
+                    });
+                    return res.status(200)
+                        .setHeader('Content-Type', 'application/json; charset=utf-8')
+                        .setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600')
+                        .send(JSON.stringify(searchDb));
+                }
+            }
+            return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
         }
 
         if (fullUrl.includes('//')) {
@@ -354,8 +359,7 @@ module.exports = async function handler(req, res) {
                 searchInput.addEventListener('focus', async () => {
                     if (allArticles.length === 0) {
                         try {
-                            // Передаем текущий хост (домен) в поисковый API
-                            const res = await fetch('/api/search-db?domain=' + encodeURIComponent(window.location.host));
+                            const res = await fetch('/static/search-index.json');
                             allArticles = await res.json();
                         } catch (e) { console.error("Ошибка загрузки базы поиска"); }
                     }
@@ -366,11 +370,11 @@ module.exports = async function handler(req, res) {
                     searchDropdown.innerHTML = '';
                     if (query.length < 2) { searchDropdown.style.display = 'none'; return; }
                     
-                    const filtered = allArticles.filter(art => art.name.toLowerCase().includes(query)).slice(0, 5);
+                    const filtered = allArticles.filter(art => (art.t || '').toLowerCase().includes(query)).slice(0, 5);
                     if (filtered.length > 0) {
                         filtered.forEach(art => {
                             const item = document.createElement('a');
-                            item.href = art.path.startsWith('/') ? art.path : '/' + art.path;
+                            item.href = '/' + art.u;
                             item.className = 'search-item';
                             item.style.display = 'block';
                             item.style.padding = '10px 15px';
@@ -378,7 +382,7 @@ module.exports = async function handler(req, res) {
                             item.style.textDecoration = 'none';
                             item.style.borderBottom = '1px solid #f1f5f9';
                             item.style.fontSize = '14px';
-                            item.innerHTML = '📄 ' + art.name;
+                            item.innerHTML = '📄 ' + art.t + (art.c ? '<br><small style="color:var(--muted); font-size:11px;">' + art.c + '</small>' : '');
                             item.addEventListener('mouseover', () => item.style.backgroundColor = '#f1f5f9');
                             item.addEventListener('mouseout', () => item.style.backgroundColor = '#fff');
                             searchDropdown.appendChild(item);
