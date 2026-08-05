@@ -1,5 +1,56 @@
 module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
+
+    // 1. БРОНЕБОЙНЫЙ ПЕРЕХВАТЧИК ПОИСКА (ВОЗВРАЩЕН НА МЕСТО)
+    if (fullUrl.includes('search-db') || (req.query && JSON.stringify(req.query).includes('search-db'))) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+        try {
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+            const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+            if (!supabaseUrl || !supabaseKey) { return res.status(200).send('[]'); }
+
+            const response = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=500`, {
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            });
+            
+            if (!response.ok) { return res.status(200).send('[]'); }
+
+            const pagesData = await response.json();
+
+            if (Array.isArray(pagesData) && pagesData.length > 0) {
+                const searchDb = pagesData.map(page => {
+                    let title = 'Без названия';
+                    const html = page.html_content || '';
+                    const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                    if (matchH1 && matchH1[1]) {
+                        title = matchH1[1].replace(/<[^>]*>/g, '').trim();
+                    }
+
+                    let description = '';
+                    const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+                    if (matchP && matchP[1]) {
+                        description = matchP[1].replace(/<[^>]*>/g, '').trim().substring(0, 150);
+                    }
+
+                    return {
+                        t: title,
+                        u: page.url_path ? (page.url_path.startsWith('/') ? page.url_path.slice(1) : page.url_path) : '',
+                        c: page.category_slug || '',
+                        d: description,
+                        tags: page.category_slug || ''
+                    };
+                });
+                return res.status(200).send(JSON.stringify(searchDb));
+            }
+            return res.status(200).send('[]');
+        } catch (err) {
+            return res.status(200).send('[]');
+        }
+    }
+
     const currentDomain = (req.headers.host || '').trim();
 
     const sendVercel404 = () => {
@@ -26,9 +77,7 @@ module.exports = async function handler(req, res) {
                 .send(actualCss);
         }
 
-        if (fullUrl.includes('//')) {
-            return sendVercel404();
-        }
+        if (fullUrl.includes('//')) { return sendVercel404(); }
 
         const urlParts = fullUrl.split('?');
         let urlPath = urlParts[0]; 
@@ -97,9 +146,7 @@ module.exports = async function handler(req, res) {
             headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
         });
         const siteData = await siteResponse.json();
-        if (!Array.isArray(siteData) || siteData.length === 0) {
-            return sendVercel404();
-        }
+        if (!Array.isArray(siteData) || siteData.length === 0) { return sendVercel404(); }
 
         const currentSiteId = siteData[0].id;
         const siteTitle = siteData[0].site_title;
@@ -115,9 +162,7 @@ module.exports = async function handler(req, res) {
 
         if (urlPath.startsWith('/category/')) {
             let targetPath = urlPath;
-            if (targetPath.endsWith('/')) {
-                targetPath = targetPath.slice(0, -1);
-            }
+            if (targetPath.endsWith('/')) { targetPath = targetPath.slice(0, -1); }
 
             let currentCategorySlug = '';
             const PAGE_SIZE = 20;
@@ -125,17 +170,13 @@ module.exports = async function handler(req, res) {
 
             if (targetPath.indexOf('/page/') !== -1) {
                 const parts = targetPath.split('/page/');
-                const firstPart = parts[0] || '';
-                const secondPart = parts[1] || '';
-                currentCategorySlug = firstPart.replace('/category/', '');
-                page = parseInt(secondPart) || 1;
+                currentCategorySlug = (parts[0] || '').replace('/category/', '');
+                page = parseInt(parts[1]) || 1;
             } else {
                 currentCategorySlug = targetPath.replace('/category/', '');
             }
 
-            if (!currentCategorySlug) {
-                return sendVercel404();
-            }
+            if (!currentCategorySlug) { return sendVercel404(); }
 
             const categoryTitles = {
                 'avtomobil': 'Автомобиль', 'avtoelektrik': 'Автоэлектрик', 'antifriz': 'Антифриз',
@@ -161,9 +202,7 @@ module.exports = async function handler(req, res) {
             });
             const catPages = await catResponse.json();
 
-            if (!Array.isArray(catPages) || catPages.length === 0) {
-                return sendVercel404();
-            }
+            if (!Array.isArray(catPages) || catPages.length === 0) { return sendVercel404(); }
 
             const contentRange = catResponse.headers.get('content-range') || '';
             const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
@@ -189,9 +228,7 @@ module.exports = async function handler(req, res) {
                                 let subStr = cleanP.substring(0, 350);
                                 const lastSign = Math.max(subStr.substring(0, 320).lastIndexOf('.'), subStr.substring(0, 320).lastIndexOf('!'), subStr.substring(0, 320).lastIndexOf('?'));
                                 description = lastSign > 40 ? subStr.substring(0, lastSign + 1).trim() : subStr.substring(0, 300).trim() + '...';
-                            } else {
-                                description = cleanP;
-                            }
+                            } else { description = cleanP; }
                         }
                     }
                 }
