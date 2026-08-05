@@ -1,34 +1,13 @@
 module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
+    const currentDomain = req.headers.host || '';
 
-    const sendVercel404 = () => {
-        const requestId = `arnl-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
-        const vercelHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>404: NOT_FOUND</title><style>body{font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif;background:#fff;color:#000;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh}ul{list-style-type:none;padding:0}.container{max-width:500px;text-align:center;padding:20px;border:1px solid #eaeaea;border-radius:5px}h1{font-size:24px;font-weight:500;margin-top:0;margin-bottom:20px;border-bottom:1px solid #eaeaea;padding-bottom:20px}p{font-size:14px;color:#666;margin:10px 0;text-align:left}code{font-family:monospace;background:#fafafa;padding:3px 5px;border-radius:3px;border:1px solid #eaeaea}a{color:#0070f3;text-decoration:none;font-size:14px}a:hover{text-decoration:underline}</style></head><body><div class="container"><h1>404: NOT_FOUND</h1><p>Code: <code>"NOT_FOUND"</code></p><p>ID: <code>"${requestId}"</code></p><br><a href="https://vercel.com" target="_blank" rel="noopener noreferrer">Read our documentation to learn more about this error.</a></div></body></html>`;
-        return res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8').send(vercelHtml);
-    };
+    // ЖЕЛЕЗОБЕТОННЫЙ ПЕРЕХВАТ SEARCH-INDEX.JSON БЕЗ ПРЕФИКСА STATIC
+    if (fullUrl.includes('search-index.json')) {
+        try {
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    try {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        const currentDomain = req.headers.host || '';
-
-        // 1. ОТДАЧА СТИЛЕЙ ДО ОЧИСТКИ ПУТЕЙ
-        if (fullUrl.includes('style.css') || (req.query && req.query.path && req.query.path.includes('style.css'))) {
-            const cssUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=css_content`;
-            const cssResponse = await fetch(cssUrl, {
-                method: 'GET',
-                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-            });
-            const cssData = await cssResponse.json();
-            const actualCss = Array.isArray(cssData) && cssData.length > 0 ? cssData[0].css_content : '';
-            return res.status(200)
-                .setHeader('Content-Type', 'text/css; charset=utf-8')
-                .setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=600')
-                .send(actualCss);
-        }
-
-        // 2. ОТДАЧА SEARCH-INDEX.JSON В СТИЛЕ КОНКУРЕНТА ПОД КАЖДЫЙ ДОМЕН
-        if (fullUrl.includes('search-index.json')) {
             const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
             const siteResponse = await fetch(siteCheckUrl, {
                 method: 'GET',
@@ -73,6 +52,34 @@ module.exports = async function handler(req, res) {
                 }
             }
             return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
+        } catch (e) {
+            return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
+        }
+    }
+
+    const sendVercel404 = () => {
+        const requestId = `arnl-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
+        const vercelHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>404: NOT_FOUND</title><style>body{font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif;background:#fff;color:#000;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh}ul{list-style-type:none;padding:0}.container{max-width:500px;text-align:center;padding:20px;border:1px solid #eaeaea;border-radius:5px}h1{font-size:24px;font-weight:500;margin-top:0;margin-bottom:20px;border-bottom:1px solid #eaeaea;padding-bottom:20px}p{font-size:14px;color:#666;margin:10px 0;text-align:left}code{font-family:monospace;background:#fafafa;padding:3px 5px;border-radius:3px;border:1px solid #eaeaea}a{color:#0070f3;text-decoration:none;font-size:14px}a:hover{text-decoration:underline}</style></head><body><div class="container"><h1>404: NOT_FOUND</h1><p>Code: <code>"NOT_FOUND"</code></p><p>ID: <code>"${requestId}"</code></p><br><a href="https://vercel.com" target="_blank" rel="noopener noreferrer">Read our documentation to learn more about this error.</a></div></body></html>`;
+        return res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8').send(vercelHtml);
+    };
+
+    try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+        // 1. ОТДАЧА СТИЛЕЙ ДО ОЧИСТКИ ПУТЕЙ
+        if (fullUrl.includes('style.css') || (req.query && req.query.path && req.query.path.includes('style.css'))) {
+            const cssUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=css_content`;
+            const cssResponse = await fetch(cssUrl, {
+                method: 'GET',
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            });
+            const cssData = await cssResponse.json();
+            const actualCss = Array.isArray(cssData) && cssData.length > 0 ? cssData[0].css_content : '';
+            return res.status(200)
+                .setHeader('Content-Type', 'text/css; charset=utf-8')
+                .setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=600')
+                .send(actualCss);
         }
 
         if (fullUrl.includes('//')) {
@@ -359,7 +366,7 @@ module.exports = async function handler(req, res) {
                 searchInput.addEventListener('focus', async () => {
                     if (allArticles.length === 0) {
                         try {
-                            const res = await fetch('/static/search-index.json');
+                            const res = await fetch('/search-index.json');
                             allArticles = await res.json();
                         } catch (e) { console.error("Ошибка загрузки базы поиска"); }
                     }
