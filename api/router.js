@@ -1,3 +1,6 @@
+module.exports = async function handler(req, res) {
+    const fullUrl = req.url || '';
+
 if (fullUrl.includes('search-db') || (req.query && JSON.stringify(req.query).includes('search-db'))) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
