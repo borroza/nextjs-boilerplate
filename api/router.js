@@ -31,6 +31,54 @@ module.exports = async function handler(req, res) {
         .send(actualCss);
     }
 
+    // ОТДАЧА БАЗЫ ДАННЫХ ДЛЯ ПОИСКА
+if (fullUrl === '/api/search-db' || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
+    const currentDomain = req.headers.host || '';
+    
+    // Сначала узнаем ID сайта по домену
+    const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
+    const siteResponse = await fetch(siteCheckUrl, {
+        method: 'GET',
+        headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+    });
+    const siteData = await siteResponse.json();
+    
+    if (Array.isArray(siteData) && siteData.length > 0) {
+        const currentSiteId = siteData[0].id;
+        
+        // Тянем все статьи (путь и название) для этого сайта
+        const searchPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content`;
+        const searchResponse = await fetch(searchPagesUrl, {
+            method: 'GET',
+            headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+        });
+        const pagesData = await searchResponse.json();
+        
+        if (Array.isArray(pagesData)) {
+            // Вытаскиваем заголовок h1 из html_content для каждой статьи
+            const searchDb = pagesData.map(page => {
+                let title = '';
+                const html = page.html_content || '';
+                if (html.includes('<h1')) {
+                    const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                    if (matchH1 && matchH1[1]) {
+                        title = matchH1[1].replace(/<[^>]*>/g, '').trim();
+                    }
+                }
+                return {
+                    name: title || 'Без названия',
+                    path: page.url_path
+                };
+            });
+            
+            return res.status(200)
+                .setHeader('Content-Type', 'application/json; charset=utf-8')
+                .send(JSON.stringify(searchDb));
+        }
+    }
+    return res.status(200).setHeader('Content-Type', 'application/json').send('[]');
+}
+
 
     // Защита от дублей
     if (fullUrl.includes('//')) {
