@@ -1,20 +1,24 @@
 module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
 
-    // САМОЕ ПЕРВОЕ: Мгновенный перехват поиска /api/search-db
+    // САМОЕ ПЕРВОЕ: Мультисайтовый перехват поиска /api/search-db с фильтрацией по домену
     if (fullUrl.includes('/api/search-db') || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
             const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
             const currentDomain = req.headers.host || '';
 
-            const siteCheckRes = await fetch(`${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`, {
+            // 1. Узнаем ID текущего сайта по домену
+            const siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`, {
                 headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
             });
-            const siteData = await siteCheckRes.json();
+            const siteData = await siteRes.json();
 
             if (Array.isArray(siteData) && siteData.length > 0) {
-                const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${siteData[0].id}&select=url_path,html_content`, {
+                const currentSiteId = siteData[0].id;
+
+                // 2. Тянем страницы строго для этого сайта
+                const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content`, {
                     headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
                 });
                 const pagesData = await pagesRes.json();
