@@ -1,19 +1,33 @@
 module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
 
-    // МОЛНИЕНОСНЫЙ ПОИСК БЕЗ ПОИСКА ПО ДОМЕНУ (ОТРАБАТЫВАЕТ ЗА 0.1 сек)
+    // УНИВЕРСАЛЬНЫЙ МУЛЬТИСАЙТОВЫЙ ПОИСК ДЛЯ ЛЮБЫХ СТРАНИЦ И СОТЕН ДОМЕНОВ
     if (fullUrl.includes('/api/search-db') || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
             const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+            
+            const urlObj = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
+            const queryDomain = urlObj.searchParams.get('domain');
+            const currentDomain = queryDomain || req.headers.host || '';
 
-            // Сразу берем страницы из базы с лимитом, чтобы сервер не думал 22 секунды
-            const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,html_content&limit=200`, {
+            const siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`, {
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            });
+            const siteData = await siteRes.json();
+
+            if (!Array.isArray(siteData) || siteData.length === 0) {
+                return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
+            }
+
+            const currentSiteId = siteData[0].id;
+
+            const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content&limit=500`, {
                 headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
             });
             const pagesData = await pagesRes.json();
 
-            if (Array.isArray(pagesData) && pagesData.length > 0) {
+            if (Array.isArray(pagesData)) {
                 const searchDb = pagesData.map(page => {
                     let title = 'Без названия';
                     const html = page.html_content || '';
@@ -31,7 +45,6 @@ module.exports = async function handler(req, res) {
         }
     }
 
-    // Универсальная функция, которая выводит ТОЧНУЮ копию фирменной страницы 404 Vercel
     const sendVercel404 = () => {
         const requestId = `arnl-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
         const vercelHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>404: NOT_FOUND</title><style>body{font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif;background:#fff;color:#000;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh}ul{list-style-type:none;padding:0}.container{max-width:500px;text-align:center;padding:20px;border:1px solid #eaeaea;border-radius:5px}h1{font-size:24px;font-weight:500;margin-top:0;margin-bottom:20px;border-bottom:1px solid #eaeaea;padding-bottom:20px}p{font-size:14px;color:#666;margin:10px 0;text-align:left}code{font-family:monospace;background:#fafafa;padding:3px 5px;border-radius:3px;border:1px solid #eaeaea}a{color:#0070f3;text-decoration:none;font-size:14px}a:hover{text-decoration:underline}</style></head><body><div class="container"><h1>404: NOT_FOUND</h1><p>Code: <code>"NOT_FOUND"</code></p><p>ID: <code>"${requestId}"</code></p><br><a href="https://vercel.com" target="_blank" rel="noopener noreferrer">Read our documentation to learn more about this error.</a></div></body></html>`;
@@ -43,7 +56,6 @@ module.exports = async function handler(req, res) {
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const currentDomain = req.headers.host || '';
 
-        // МГНОВЕННЫЙ МУЛЬТИСАЙТОВЫЙ ПЕРЕХВАТ СТИЛЕЙ ДО ОЧИСТКИ ПУТЕЙ
         if (fullUrl.includes('style.css') || (req.query && req.query.path && req.query.path.includes('style.css'))) {
             const cssUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=css_content`;
             const cssResponse = await fetch(cssUrl, {
@@ -58,7 +70,6 @@ module.exports = async function handler(req, res) {
                 .send(actualCss);
         }
 
-        // Защита от дублей
         if (fullUrl.includes('//')) {
             return sendVercel404();
         }
@@ -72,13 +83,11 @@ module.exports = async function handler(req, res) {
 
         const protocol = currentDomain.includes('localhost') ? 'http' : 'https';
 
-        // 1. ОТДАЧА ROBOTS.TXT
         if (urlPath === '/robots.txt') {
             const robotsTxt = `User-agent: *\nAllow: /\n\nSitemap: ${protocol}://${currentDomain}/sitemap.xml`;
             return res.status(200).setHeader('Content-Type', 'text/plain; charset=utf-8').send(robotsTxt);
         }
 
-        // 2. УМНАЯ ГЕНЕРАЦИЯ SITEMAP.XML
         if (urlPath === '/sitemap.xml') {
             const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
             const siteResponse = await fetch(siteCheckUrl, {
@@ -126,7 +135,6 @@ module.exports = async function handler(req, res) {
             return res.status(200).setHeader('Content-Type', 'application/xml; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=60').send(xml);
         }
 
-        // Получаем инфо о сайте
         const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id,site_title,site_icon,css_content`;
         const siteResponse = await fetch(siteCheckUrl, {
             method: 'GET',
@@ -142,7 +150,6 @@ module.exports = async function handler(req, res) {
         const siteIcon = siteData[0].site_icon || '🔧';
         const siteCss = siteData[0].css_content || '';
 
-        // ДИНАМИЧЕСКАЯ ОТДАЧА СТИЛЕЙ
         if (urlPath === '/static/css/style.css') {
             return res.status(200)
                 .setHeader('Content-Type', 'text/css; charset=utf-8')
@@ -150,7 +157,6 @@ module.exports = async function handler(req, res) {
                 .send(siteCss);
         }
 
-        // 3. СТРОГАЯ СБОРКА КАТЕГОРИИ
         if (urlPath.startsWith('/category/')) {
             let targetPath = urlPath;
             if (targetPath.endsWith('/')) {
@@ -280,7 +286,6 @@ module.exports = async function handler(req, res) {
         const systemExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.js', '.ico', '.svg', '.json'];
         if (systemExtensions.some(ext => urlPath.toLowerCase().endsWith(ext))) { return sendVercel404(); }
 
-        // 4. ОТДАЧА СТАТЬИ ИЗ БАЗЫ
         const targetUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content,category_slug,id`;
         const response = await fetch(targetUrl, {
             method: 'GET',
@@ -349,7 +354,8 @@ module.exports = async function handler(req, res) {
                 searchInput.addEventListener('focus', async () => {
                     if (allArticles.length === 0) {
                         try {
-                            const res = await fetch('/api/search-db');
+                            // Передаем текущий хост (домен) в поисковый API
+                            const res = await fetch('/api/search-db?domain=' + encodeURIComponent(window.location.host));
                             allArticles = await res.json();
                         } catch (e) { console.error("Ошибка загрузки базы поиска"); }
                     }
