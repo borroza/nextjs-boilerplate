@@ -2,8 +2,8 @@ module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
     const currentDomain = req.headers.host || '';
 
-    // ЖЕЛЕЗОБЕТОННЫЙ ПЕРЕХВАТ ЧЕРЕЗ ПАПКУ /api/
-    if (fullUrl.includes('search-index.json')) {
+    // ЖЕЛЕЗОБЕТОННЫЙ ПЕРЕХВАТЧИК ПОИСКА НА /api/search-db
+    if (fullUrl.includes('/api/search-db') || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
             const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -365,7 +365,7 @@ module.exports = async function handler(req, res) {
                 searchInput.addEventListener('focus', async () => {
                     if (allArticles.length === 0) {
                         try {
-                            const res = await fetch('/api/search-index.json');
+                            const res = await fetch('/api/search-db');
                             allArticles = await res.json();
                         } catch (e) { console.error("Ошибка загрузки базы поиска"); }
                     }
