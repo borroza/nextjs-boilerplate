@@ -1,52 +1,59 @@
 module.exports = async function handler(req, res) {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const currentDomain = req.headers.host || '';
+    // Отключаем кэширование, чтобы всегда получать свежие статьи
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-    // Получаем ID сайта по домену
-    const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
-    const siteResponse = await fetch(siteCheckUrl, {
-      method: 'GET',
-      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-    });
-    const siteData = await siteResponse.json();
-    if (!Array.isArray(siteData) || siteData.length === 0) {
-      return res.status(404).json([]);
-    }
-    const currentSiteId = siteData[0].id;
+    try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
-    // Вытягиваем только пути и контент для поиска (лимит 1000 статей)
-    const allPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content&limit=1000`;
-    const allPagesResponse = await fetch(allPagesUrl, {
-      method: 'GET',
-      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-    });
-    const allPagesData = await allPagesResponse.json();
-
-    let searchDatabase = [];
-    if (Array.isArray(allPagesData)) {
-      allPagesData.forEach(p => {
-        if (p.url_path.includes('.') || p.url_path.endsWith('.html')) {
-          let title = p.url_path;
-          if (p.html_content && p.html_content.includes('<h1')) {
-            const matchH1 = p.html_content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-            if (matchH1 && matchH1[1]) { 
-              title = matchH1[1].replace(/<[^>]*>/g, '').trim(); 
-            }
-          }
-          searchDatabase.push({ name: title, path: p.url_path });
+        if (!supabaseUrl || !supabaseKey) {
+            return res.status(200).send('[]');
         }
-      });
+
+        // Забираем все страницы из БД
+        const response = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=500`, {
+            headers: { 
+                'apikey': supabaseKey, 
+                'Authorization': `Bearer ${supabaseKey}` 
+            }
+        });
+        
+        if (!response.ok) {
+            return res.status(200).send('[]');
+        }
+
+        const pagesData = await response.json();
+
+        if (Array.isArray(pagesData) && pagesData.length > 0) {
+            const searchDb = pagesData.map(page => {
+                let title = 'Без названия';
+                const html = page.html_content || '';
+                const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                if (matchH1 && matchH1[1]) {
+                    title = matchH1[1].replace(/<[^>]*>/g, '').trim();
+                }
+
+                let description = '';
+                const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+                if (matchP && matchP[1]) {
+                    description = matchP[1].replace(/<[^>]*>/g, '').trim().substring(0, 150);
+                }
+
+                return {
+                    t: title,
+                    u: page.url_path ? (page.url_path.startsWith('/') ? page.url_path.slice(1) : page.url_path) : '',
+                    c: page.category_slug || '',
+                    d: description,
+                    tags: page.category_slug || ''
+                };
+            });
+
+            return res.status(200).send(JSON.stringify(searchDb));
+        }
+
+        return res.status(200).send('[]');
+    } catch (err) {
+        return res.status(200).send('[]');
     }
-
-    // Кэшируем базу поиска на серверах Vercel на 24 часа
-    return res.status(200)
-      .setHeader('Content-Type', 'application/json; charset=utf-8')
-      .setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800')
-      .json(searchDatabase);
-
-  } catch (err) {
-    return res.status(500).json([]);
-  }
 };
