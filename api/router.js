@@ -1,27 +1,20 @@
 module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
-    const currentDomain = (req.headers.host || '').trim();
 
-    // 1. ТОЧНЫЙ ПЕРЕХВАТЧИК ПОИСКА ДЛЯ SITE_ID = 3
-    if (fullUrl.includes('/api/search-db') || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
+    // АБСОЛЮТНО ПРОСТОЙ И БЕЗОТКАЗНЫЙ ПОИСК
+    if (fullUrl.includes('search-db') || (req.query && JSON.stringify(req.query).includes('search-db'))) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
             const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-            if (!supabaseUrl || !supabaseKey) {
-                return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
-            }
-
-            // Берем страницы конкретно для сайта с id = 3, который мы видим в базе
-            const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.3&select=url_path,category_slug,html_content&limit=500`, {
-                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            const response = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=500`, {
+                headers: { 
+                    'apikey': supabaseKey, 
+                    'Authorization': `Bearer ${supabaseKey}` 
+                }
             });
             
-            if (!pagesRes.ok) {
-                return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
-            }
-
-            const pagesData = await pagesRes.json();
+            const pagesData = await response.json();
 
             if (Array.isArray(pagesData)) {
                 const searchDb = pagesData.map(page => {
@@ -46,16 +39,20 @@ module.exports = async function handler(req, res) {
                         tags: page.category_slug || ''
                     };
                 });
+
                 return res.status(200)
                     .setHeader('Content-Type', 'application/json; charset=utf-8')
-                    .setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600')
                     .send(JSON.stringify(searchDb));
             }
+
             return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
-        } catch (e) {
+        } catch (err) {
             return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
         }
     }
+
+    const currentDomain = (req.headers.host || '').trim();
+    // (дальше идет весь остальной код вашего роутера для вывода страниц, стилей и sitemap)
 
     const sendVercel404 = () => {
         const requestId = `arnl-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
