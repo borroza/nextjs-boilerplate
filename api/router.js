@@ -2,78 +2,85 @@ module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
     const currentDomain = (req.headers.host || '').trim();
 
-if (fullUrl.includes('/api/search-db') || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
-    try {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    // 1. ПЕРЕХВАТЧИК ПОИСКА
+    if (fullUrl.includes('/api/search-db') || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
+        try {
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-        if (!supabaseUrl || !supabaseKey) {
-            return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
-        }
+            if (!supabaseUrl || !supabaseKey) {
+                return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
+            }
 
-        const currentDomain = (req.headers.host || '').trim().replace(/^www\./, '');
-        
-        let siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?domain=ilike.%25${encodeURIComponent(currentDomain)}%25&select=id`, {
-            headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-        });
-        let siteData = await siteRes.json();
-
-        if (!Array.isArray(siteData) || siteData.length === 0) {
-            siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?select=id&limit=1`, {
+            const cleanDomain = currentDomain.replace(/^www\./, '');
+            
+            let siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?domain=ilike.%25${encodeURIComponent(cleanDomain)}%25&select=id`, {
                 headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
             });
-            siteData = await siteRes.json();
-        }
+            let siteData = await siteRes.json();
 
-        if (!Array.isArray(siteData) || siteData.length === 0) {
-            return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
-        }
+            if (!Array.isArray(siteData) || siteData.length === 0) {
+                siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?select=id&limit=1`, {
+                    headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+                });
+                siteData = await siteRes.json();
+            }
 
-        const currentSiteId = siteData[0].id;
+            if (!Array.isArray(siteData) || siteData.length === 0) {
+                return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
+            }
 
-        const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug,html_content&limit=500`, {
-            headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-        });
-        
-        if (!pagesRes.ok) {
-            return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
-        }
+            const currentSiteId = siteData[0].id;
 
-        const pagesData = await pagesRes.json();
-
-        if (Array.isArray(pagesData)) {
-            const searchDb = pagesData.map(page => {
-                let title = 'Без названия';
-                const html = page.html_content || '';
-                const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-                if (matchH1 && matchH1[1]) {
-                    title = matchH1[1].replace(/<[^>]*>/g, '').trim();
-                }
-
-                let description = '';
-                const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-                if (matchP && matchP[1]) {
-                    description = matchP[1].replace(/<[^>]*>/g, '').trim().substring(0, 150);
-                }
-
-                return {
-                    t: title,
-                    u: page.url_path ? (page.url_path.startsWith('/') ? page.url_path.slice(1) : page.url_path) : '',
-                    c: page.category_slug || '',
-                    d: description,
-                    tags: page.category_slug || ''
-                };
+            const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug,html_content&limit=500`, {
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
             });
-            return res.status(200)
-                .setHeader('Content-Type', 'application/json; charset=utf-8')
-                .setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600')
-                .send(JSON.stringify(searchDb));
+            
+            if (!pagesRes.ok) {
+                return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
+            }
+
+            const pagesData = await pagesRes.json();
+
+            if (Array.isArray(pagesData)) {
+                const searchDb = pagesData.map(page => {
+                    let title = 'Без названия';
+                    const html = page.html_content || '';
+                    const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                    if (matchH1 && matchH1[1]) {
+                        title = matchH1[1].replace(/<[^>]*>/g, '').trim();
+                    }
+
+                    let description = '';
+                    const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+                    if (matchP && matchP[1]) {
+                        description = matchP[1].replace(/<[^>]*>/g, '').trim().substring(0, 150);
+                    }
+
+                    return {
+                        t: title,
+                        u: page.url_path ? (page.url_path.startsWith('/') ? page.url_path.slice(1) : page.url_path) : '',
+                        c: page.category_slug || '',
+                        d: description,
+                        tags: page.category_slug || ''
+                    };
+                });
+                return res.status(200)
+                    .setHeader('Content-Type', 'application/json; charset=utf-8')
+                    .setHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600')
+                    .send(JSON.stringify(searchDb));
+            }
+            return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
+        } catch (e) {
+            return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
         }
-        return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
-    } catch (e) {
-        return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
     }
-}
+
+    const sendVercel404 = () => {
+        const requestId = `arnl-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
+        const vercelHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>404: NOT_FOUND</title><style>body{font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif;background:#fff;color:#000;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh}ul{list-style-type:none;padding:0}.container{max-width:500px;text-align:center;padding:20px;border:1px solid #eaeaea;border-radius:5px}h1{font-size:24px;font-weight:500;margin-top:0;margin-bottom:20px;border-bottom:1px solid #eaeaea;padding-bottom:20px}p{font-size:14px;color:#666;margin:10px 0;text-align:left}code{font-family:monospace;background:#fafafa;padding:3px 5px;border-radius:3px;border:1px solid #eaeaea}a{color:#0070f3;text-decoration:none;font-size:14px}a:hover{text-decoration:underline}</style></head><body><div class="container"><h1>404: NOT_FOUND</h1><p>Code: <code>"NOT_FOUND"</code></p><p>ID: <code>"${requestId}"</code></p><br><a href="https://vercel.com" target="_blank" rel="noopener noreferrer">Read our documentation to learn more about this error.</a></div></body></html>`;
+        return res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8').send(vercelHtml);
+    };
 
     try {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
