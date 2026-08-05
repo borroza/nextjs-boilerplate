@@ -1,10 +1,7 @@
 module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
 
-module.exports = async function handler(req, res) {
-    const fullUrl = req.url || '';
-
-    // АБСОЛЮТНО ПЕРВЫЙ ПЕРЕХВАТЧИК (ДО ЛЮБЫХ ДРУГИХ КОДОВ И ПЕРЕМЕННЫХ)
+    // 1. ПЕРЕХВАТЧИК ПОИСКА (РАБОТАЕТ С САМОГО ПЕРВОГО КЛИКА)
     if (fullUrl.includes('search-db') || (req.query && JSON.stringify(req.query).includes('search-db'))) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -55,9 +52,6 @@ module.exports = async function handler(req, res) {
     }
 
     const currentDomain = (req.headers.host || '').trim();
-
-    const currentDomain = (req.headers.host || '').trim();
-    // (дальше идет весь остальной код вашего роутера для вывода страниц, стилей и sitemap)
 
     const sendVercel404 = () => {
         const requestId = `arnl-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
