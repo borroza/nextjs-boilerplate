@@ -2,7 +2,7 @@ module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
     const currentDomain = req.headers.host || '';
 
-    // ЖЕЛЕЗОБЕТОННЫЙ ПЕРЕХВАТ SEARCH-INDEX.JSON БЕЗ ПРЕФИКСА STATIC
+    // ЖЕЛЕЗОБЕТОННЫЙ ПЕРЕХВАТ ЧЕРЕЗ ПАПКУ /api/
     if (fullUrl.includes('search-index.json')) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -67,7 +67,6 @@ module.exports = async function handler(req, res) {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-        // 1. ОТДАЧА СТИЛЕЙ ДО ОЧИСТКИ ПУТЕЙ
         if (fullUrl.includes('style.css') || (req.query && req.query.path && req.query.path.includes('style.css'))) {
             const cssUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=css_content`;
             const cssResponse = await fetch(cssUrl, {
@@ -366,7 +365,7 @@ module.exports = async function handler(req, res) {
                 searchInput.addEventListener('focus', async () => {
                     if (allArticles.length === 0) {
                         try {
-                            const res = await fetch('/search-index.json');
+                            const res = await fetch('/api/search-index.json');
                             allArticles = await res.json();
                         } catch (e) { console.error("Ошибка загрузки базы поиска"); }
                     }
