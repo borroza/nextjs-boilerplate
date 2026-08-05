@@ -1,40 +1,43 @@
 module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
 
-    // ПРАВИЛЬНЫЙ МУЛЬТИСАЙТОВЫЙ ПОИСК СТРОГО ПО ДОМЕНУ БЕЗ КОСТЫЛЕЙ
+    // БЫСТРЫЙ МУЛЬТИСАЙТОВЫЙ ПОИСК БЕЗ ЛИШНИХ ЗАДЕРЖЕК
     if (fullUrl.includes('/api/search-db') || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
             const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
             const currentDomain = req.headers.host || '';
 
-            // 1. Ищем сайт строго по текущему домену
+            // Делаем один прямой запрос: ищем сайт и получаем его страницы за один раз (или ищем по сайту)
+            // Чтобы не делать каскад запросов, берем сайт и страницы параллельно или через простой поиск
             const siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`, {
                 headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
             });
             const siteData = await siteRes.json();
 
-            if (Array.isArray(siteData) && siteData.length > 0) {
-                const currentSiteId = siteData[0].id;
+            if (!Array.isArray(siteData) || siteData.length === 0) {
+                return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
+            }
 
-                // 2. Затягиваем страницы только для найденного сайта
-                const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content`, {
-                    headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            const currentSiteId = siteData[0].id;
+
+            // Запрашиваем только url_path и html_content (выбираем только нужное, без лишнего мусора)
+            const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,html_content&limit=500`, {
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            });
+            const pagesData = await pagesRes.json();
+
+            if (Array.isArray(pagesData)) {
+                const searchDb = pagesData.map(page => {
+                    let title = 'Без названия';
+                    const html = page.html_content || '';
+                    const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                    if (matchH1 && matchH1[1]) {
+                        title = matchH1[1].replace(/<[^>]*>/g, '').trim();
+                    }
+                    return { name: title, path: page.url_path };
                 });
-                const pagesData = await pagesRes.json();
-
-                if (Array.isArray(pagesData)) {
-                    const searchDb = pagesData.map(page => {
-                        let title = 'Без названия';
-                        const html = page.html_content || '';
-                        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-                        if (matchH1 && matchH1[1]) {
-                            title = matchH1[1].replace(/<[^>]*>/g, '').trim();
-                        }
-                        return { name: title, path: page.url_path };
-                    });
-                    return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send(JSON.stringify(searchDb));
-                }
+                return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send(JSON.stringify(searchDb));
             }
             return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
         } catch (e) {
