@@ -1,22 +1,28 @@
-module.exports = async function handler(req, res) {
-    const fullUrl = req.url || '';
-
-    // АБСОЛЮТНО ПРОСТОЙ И БЕЗОТКАЗНЫЙ ПОИСК
-    if (fullUrl.includes('search-db') || (req.query && JSON.stringify(req.query).includes('search-db'))) {
+if (fullUrl.includes('search-db') || (req.query && JSON.stringify(req.query).includes('search-db'))) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
             const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-            const response = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=500`, {
+            console.log("SUPABASE_URL exists:", !!supabaseUrl);
+
+            const response = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=10`, {
                 headers: { 
                     'apikey': supabaseKey, 
                     'Authorization': `Bearer ${supabaseKey}` 
                 }
             });
             
-            const pagesData = await response.json();
+            const rawText = await response.text();
+            console.log("Supabase raw response:", rawText);
 
-            if (Array.isArray(pagesData)) {
+            let pagesData = [];
+            try {
+                pagesData = JSON.parse(rawText);
+            } catch (e) {
+                console.log("JSON parse error:", e.message);
+            }
+
+            if (Array.isArray(pagesData) && pagesData.length > 0) {
                 const searchDb = pagesData.map(page => {
                     let title = 'Без названия';
                     const html = page.html_content || '';
@@ -47,6 +53,7 @@ module.exports = async function handler(req, res) {
 
             return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
         } catch (err) {
+            console.log("Search catch error:", err.message);
             return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
         }
     }
