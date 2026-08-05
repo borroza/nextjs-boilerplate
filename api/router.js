@@ -2,7 +2,7 @@ module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
     const currentDomain = (req.headers.host || '').trim();
 
-    // 1. ПЕРЕХВАТЧИК ПОИСКА
+    // 1. МОЛНИЕНОСНЫЙ ПЕРЕХВАТЧИК ПОИСКА
     if (fullUrl.includes('/api/search-db') || (req.query && req.query.path && req.query.path.includes('api/search-db'))) {
         try {
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,27 +12,8 @@ module.exports = async function handler(req, res) {
                 return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
             }
 
-            const cleanDomain = currentDomain.replace(/^www\./, '');
-            
-            let siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?domain=ilike.%25${encodeURIComponent(cleanDomain)}%25&select=id`, {
-                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-            });
-            let siteData = await siteRes.json();
-
-            if (!Array.isArray(siteData) || siteData.length === 0) {
-                siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?select=id&limit=1`, {
-                    headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-                });
-                siteData = await siteRes.json();
-            }
-
-            if (!Array.isArray(siteData) || siteData.length === 0) {
-                return res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8').send('[]');
-            }
-
-            const currentSiteId = siteData[0].id;
-
-            const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug,html_content&limit=500`, {
+            // Сразу берем страницы из базы (без медленного предварительного поиска сайта по домену)
+            const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=200`, {
                 headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
             });
             
