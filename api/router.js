@@ -359,7 +359,7 @@ module.exports = async function handler(req, res) {
 
         const jsScripts = '<script src="/script.js"></script></body></html>';
 
-        htmlContent = htmlContent + jsScripts;
+      htmlContent = htmlContent.replace(/<\/\s*body\s*>[\s\S]*?<\/\s*html\s*>/gi, '').trim() + jsScripts;
 
         return res.status(200)
             .setHeader('Content-Type', 'text/html; charset=utf-8')
