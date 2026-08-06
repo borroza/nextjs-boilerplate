@@ -357,9 +357,9 @@ module.exports = async function handler(req, res) {
         htmlContent = htmlContent.replaceAll('[CURRENT YEAR]', new Date().getFullYear().toString());
         htmlContent = htmlContent.replaceAll('[SITE TITLE]', siteTitle);
 
-       const jsScripts = '<script src="/script.js"></script></body>';
+        const jsScripts = '<script src="/script.js"></script></body></html>';
 
-       htmlContent = htmlContent + jsScripts;
+        htmlContent = htmlContent + jsScripts;
 
         return res.status(200)
             .setHeader('Content-Type', 'text/html; charset=utf-8')
