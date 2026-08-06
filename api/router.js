@@ -113,53 +113,76 @@ module.exports = async function handler(req, res) {
             const robotsTxt = `User-agent: *\nAllow: /\n\nSitemap: ${protocol}://${currentDomain}/sitemap.xml`;
             return res.status(200).setHeader('Content-Type', 'text/plain; charset=utf-8').send(robotsTxt);
         }
+if (urlPath === '/sitemap.xml') {
+    const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
+    const siteResponse = await fetch(siteCheckUrl, {
+        method: 'GET',
+        headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+    });
+    const siteData = await siteResponse.json();
 
-        if (urlPath === '/sitemap.xml') {
-            const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
-            const siteResponse = await fetch(siteCheckUrl, {
-                method: 'GET',
-                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-            });
-            const siteData = await siteResponse.json();
-            let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://sitemaps.org">\n`;
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+              `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
-            if (Array.isArray(siteData) && siteData.length > 0) {
-                const currentSiteId = siteData[0].id;
-                const pagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug,created_at&order=created_at.desc&limit=50000`;
-                const pagesResponse = await fetch(pagesUrl, {
-                    method: 'GET',
-                    headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-                });
-                const pagesData = await pagesResponse.json();
+    // 1. Главная страница (строго один раз в самом верху, без дат)
+    xml += `<url>\n` +
+           `<loc>${protocol}://${currentDomain}/</loc>\n` +
+           `<changefreq>daily</changefreq>\n` +
+           `<priority>1.0</priority>\n` +
+           `</url>\n`;
 
-                if (Array.isArray(pagesData) && pagesData.length > 0) {
-                    const latestDate = pagesData[0].created_at ? pagesData[0].created_at.split('T')[0] : new Date().toISOString().split('T')[0];
-                    xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <lastmod>${latestDate}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
+    if (Array.isArray(siteData) && siteData.length > 0) {
+        const currentSiteId = siteData[0].id;
+        const pagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug&limit=50000`;
+        const pagesResponse = await fetch(pagesUrl, {
+            method: 'GET',
+            headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+        });
+        const pagesData = await pagesResponse.json();
 
-                    const uniqueCategories = new Set();
-                    pagesData.forEach(page => {
-                        if (page.category_slug && page.category_slug.trim() !== '') {
-                            uniqueCategories.add(page.category_slug.trim().toLowerCase());
-                        }
-                    });
-
-                    uniqueCategories.forEach(catSlug => {
-                        xml += `  <url>\n    <loc>${protocol}://${currentDomain}/category/${catSlug}</loc>\n    <lastmod>${latestDate}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
-                    });
-
-                    pagesData.forEach(page => {
-                        const fixedPath = page.url_path.startsWith('/') ? page.url_path : '/' + page.url_path;
-                        const date = page.created_at ? page.created_at.split('T')[0] : new Date().toISOString().split('T')[0];
-                        xml += `  <url>\n    <loc>${protocol}://${currentDomain}${fixedPath}</loc>\n    <lastmod>${date}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
-                    });
-                } else {
-                    const today = new Date().toISOString().split('T')[0];
-                    xml += `  <url>\n    <loc>${protocol}://${currentDomain}/</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
+        if (Array.isArray(pagesData) && pagesData.length > 0) {
+            // Собираем уникальные категории для карты сайта
+            const uniqueCategories = new Set();
+            pagesData.forEach(page => {
+                if (page.category_slug && page.category_slug.trim() !== '') {
+                    uniqueCategories.add(page.category_slug.trim().toLowerCase());
                 }
-            }
-            xml += `</urlset>`;
-            return res.status(200).setHeader('Content-Type', 'application/xml; charset=utf-8').setHeader('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=60').send(xml);
+            });
+
+            // 2. Страницы категорий (без дат)
+            uniqueCategories.forEach(catSlug => {
+                xml += `<url>\n` +
+                       `<loc>${protocol}://${currentDomain}/category/${catSlug}</loc>\n` +
+                       `<changefreq>daily</changefreq>\n` +
+                       `<priority>0.9</priority>\n` +
+                       `</url>\n`;
+            });
+
+            // 3. Остальные страницы и статьи из базы (без дат и с защитой от дублирования главной)
+            pagesData.forEach(page => {
+                const pagePath = page.url_path ? (page.url_path.startsWith('/') ? page.url_path : '/' + page.url_path) : '';
+                
+                // Пропускаем главную, так как она уже добавлена выше
+                if (pagePath === '/' || pagePath === '') {
+                    return;
+                }
+
+                xml += `<url>\n` +
+                       `<loc>${protocol}://${currentDomain}${pagePath}</loc>\n` +
+                       `<changefreq>weekly</changefreq>\n` +
+                       `<priority>0.8</priority>\n` +
+                       `</url>\n`;
+            });
         }
+    }
+
+    xml += `</urlset>`;
+
+    return res.status(200)
+        .setHeader('Content-Type', 'application/xml; charset=utf-8')
+        .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
+        .send(xml);
+}
 
         const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id,site_title,site_icon,css_content`;
         const siteResponse = await fetch(siteCheckUrl, {
