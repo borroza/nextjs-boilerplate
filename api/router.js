@@ -377,16 +377,22 @@ if (urlPath === '/sitemap.xml') {
         htmlContent = htmlContent.replace(/<ul id="dynamicRelatedList">([\s\S]*?)<\/ul>/i, `<ul id="dynamicRelatedList">${sidebarLinksHtml}</ul>`);
         htmlContent = htmlContent.replace(/<div class="list-grid" id="dynamicGridReadAlso">([\s\S]*?)<\/div>/i, `<div class="list-grid" id="dynamicGridReadAlso">${readAlsoCardsHtml}</div>`);
 
-        htmlContent = htmlContent.replaceAll('[CURRENT YEAR]', new Date().getFullYear().toString());
+       htmlContent = htmlContent.replaceAll('[CURRENT YEAR]', new Date().getFullYear().toString());
         htmlContent = htmlContent.replaceAll('[SITE TITLE]', siteTitle);
 
-        const jsScripts = '<script src="/script.js"></script></body></html>';
+        const jsScripts = `<script>...</script></body>`;
+        htmlContent = htmlContent + jsScripts;
 
-      htmlContent = htmlContent.replace(/<\/\s*body\s*>[\s\S]*?<\/\s*html\s*>/gi, '').trim() + jsScripts;
+        // --- ВОТ СЮДА ВСТАВЛЯЕМ ВНЕДРЕНИЕ СТИЛЕЙ ИЗ БАЗЫ ---
+        if (htmlContent.includes('</head>')) {
+            htmlContent = htmlContent.replace('</head>', `<style>${siteCss}</style></head>`);
+        } else {
+            htmlContent = `<style>${siteCss}</style>` + htmlContent;
+        }
 
         return res.status(200)
             .setHeader('Content-Type', 'text/html; charset=utf-8')
-            .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
+            .setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
             .send(htmlContent);
 
     } catch (err) {
