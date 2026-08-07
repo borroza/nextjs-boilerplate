@@ -433,7 +433,7 @@ if (urlPath === '/sitemap.xml') {
         htmlContent = htmlContent.replaceAll('[CURRENT YEAR]', new Date().getFullYear().toString());
         htmlContent = htmlContent.replaceAll('[SITE TITLE]', siteTitle);
 
-        const jsScripts = `<script>
+      const jsScripts = `<script>
         document.addEventListener("DOMContentLoaded", function() {
             // 1. Открытие/закрытие главного мобильного меню (бургер)
             const menuBtn = document.querySelector('.menu-btn');
@@ -451,7 +451,8 @@ if (urlPath === '/sitemap.xml') {
             const navDropdown = document.querySelector('.nav-dropdown');
             if (dropdownToggle && navDropdown) {
                 dropdownToggle.addEventListener('click', function(e) {
-                    e.preventDefault(); // Предотвращаем стандартное поведение
+                    e.preventDefault();
+                    e.stopPropagation();
                     navDropdown.classList.toggle('is-open');
                     const isExpanded = navDropdown.classList.contains('is-open');
                     dropdownToggle.setAttribute('aria-expanded', isExpanded);
