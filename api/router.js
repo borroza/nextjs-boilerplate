@@ -377,10 +377,63 @@ if (urlPath === '/sitemap.xml') {
         htmlContent = htmlContent.replace(/<ul id="dynamicRelatedList">([\s\S]*?)<\/ul>/i, `<ul id="dynamicRelatedList">${sidebarLinksHtml}</ul>`);
         htmlContent = htmlContent.replace(/<div class="list-grid" id="dynamicGridReadAlso">([\s\S]*?)<\/div>/i, `<div class="list-grid" id="dynamicGridReadAlso">${readAlsoCardsHtml}</div>`);
 
-       htmlContent = htmlContent.replaceAll('[CURRENT YEAR]', new Date().getFullYear().toString());
+        // --- ДИНАМИЧЕСКИЙ ВЫВОД ПОПУЛЯРНЫХ СТАТЕЙ ДЛЯ ГЛАВНОЙ ---
+        if (htmlContent.includes('<div id="dynamic-popular-articles"></div>')) {
+            try {
+                // Ищем последние 5 статей, исключая саму главную страницу
+                const articlesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=neq.&select=url_path,html_content&limit=5&order=id.desc`;
+                const articlesRes = await fetch(articlesUrl, {
+                    method: 'GET',
+                    headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+                });
+                const latestArticles = await articlesRes.json();
+                
+                let dynamicHtml = '<div style="display: grid; gap: 16px;">';
+                if (Array.isArray(latestArticles) && latestArticles.length > 0) {
+                    latestArticles.forEach(art => {
+                        const html = art.html_content || '';
+                        
+                        // Достаем заголовок из H1
+                        let artTitle = 'Полезная статья';
+                        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                        if (matchH1 && matchH1[1]) {
+                            artTitle = matchH1[1].replace(/<[^>]*>/g, '').trim();
+                        }
+
+                        // Достаем описание из первого абзаца
+                        let artDesc = 'Читайте подробности в нашей новой инструкции...';
+                        const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+                        if (matchP && matchP[1]) {
+                            const rawDesc = matchP[1].replace(/<[^>]*>/g, '').trim();
+                            if (rawDesc.length > 20) {
+                                artDesc = rawDesc.substring(0, 150) + '...';
+                            }
+                        }
+
+                        const artPath = art.url_path.startsWith('/') ? art.url_path : '/' + art.url_path;
+
+                        dynamicHtml += `
+                        <div style="padding: 18px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;">
+                            <a href="${artPath}" style="text-decoration: none; display: block;">
+                                <h3 style="margin: 0 0 8px; font-size: 16px; color: #1e293b; font-weight: 700;">${artTitle}</h3>
+                                <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">${artDesc}</p>
+                            </a>
+                        </div>`;
+                    });
+                }
+                dynamicHtml += '</div>';
+                
+                // Вставляем готовый код вместо метки
+                htmlContent = htmlContent.replace('<div id="dynamic-popular-articles"></div>', dynamicHtml);
+            } catch (err) {
+                console.error("Ошибка загрузки популярных статей: ", err);
+            }
+        }
+
+        htmlContent = htmlContent.replaceAll('[CURRENT YEAR]', new Date().getFullYear().toString());
         htmlContent = htmlContent.replaceAll('[SITE TITLE]', siteTitle);
 
-      const jsScripts = `<script>
+        const jsScripts = `<script>
         document.addEventListener("DOMContentLoaded", function() {
             const menuBtn = document.querySelector('.menu-btn');
             const mainNav = document.querySelector('.main-nav');
@@ -405,7 +458,7 @@ if (urlPath === '/sitemap.xml') {
 
         return res.status(200)
             .setHeader('Content-Type', 'text/html; charset=utf-8')
-            .setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+            .setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800')
             .send(htmlContent);
 
     } catch (err) {
