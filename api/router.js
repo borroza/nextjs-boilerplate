@@ -435,6 +435,7 @@ if (urlPath === '/sitemap.xml') {
 
         const jsScripts = `<script>
         document.addEventListener("DOMContentLoaded", function() {
+            // 1. Открытие/закрытие главного мобильного меню (бургер)
             const menuBtn = document.querySelector('.menu-btn');
             const mainNav = document.querySelector('.main-nav');
             if (menuBtn && mainNav) {
@@ -444,9 +445,21 @@ if (urlPath === '/sitemap.xml') {
                     menuBtn.setAttribute('aria-expanded', isExpanded);
                 });
             }
+
+            // 2. Раскрытие списка "Все разделы" по клику на мобильных
+            const dropdownToggle = document.querySelector('.dropdown-toggle');
+            const navDropdown = document.querySelector('.nav-dropdown');
+            if (dropdownToggle && navDropdown) {
+                dropdownToggle.addEventListener('click', function(e) {
+                    e.preventDefault(); // Предотвращаем стандартное поведение
+                    navDropdown.classList.toggle('is-open');
+                    const isExpanded = navDropdown.classList.contains('is-open');
+                    dropdownToggle.setAttribute('aria-expanded', isExpanded);
+                });
+            }
         });
         </script>`;
-
+        
         htmlContent = htmlContent + jsScripts;
 
         // --- ПОДКЛЮЧАЕМ ВНЕШНИЙ ФАЙЛ СТИЛЕЙ (ОДНОЙ СТРОКОЙ) ---
