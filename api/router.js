@@ -347,18 +347,20 @@ module.exports = async function handler(req, res) {
 
         htmlContent = htmlContent + jsScripts;
 
-        // Внедряем стили, yandex_verification и полный код Метрики в <head>
-        const headAdditions = `<link rel="stylesheet" href="/static/css/style.css">${yandexVerification}${metrikaCode}`;
-        if (htmlContent.includes('</head>')) {
-            if (!htmlContent.includes('/static/css/style.css')) {
-                htmlContent = htmlContent.replace('</head>', `${headAdditions}</head>`);
-            }
-        } else {
-            if (!htmlContent.includes('/static/css/style.css')) {
-                htmlContent = `${headAdditions}` + htmlContent;
-            }
-        }
+      // 1. Очищаем HTML от старых зашитых тегов верификации, пустой метрики и старых стилей
+        htmlContent = htmlContent.replace(/<meta name="yandex-verification"[^>]*>/gi, '');
+        htmlContent = htmlContent.replace(/<!-- Yandex\.Metrika counter -->[\s\S]*?<!-- \/Yandex\.Metrika counter -->/gi, '');
+        htmlContent = htmlContent.replace(/<link rel="stylesheet" href="\/static\/css\/style\.css"[^>]*>/gi, '');
 
+        // 2. Внедряем всё свежее прямо перед </head>
+        const headAdditions = `\n<link rel="stylesheet" href="/static/css/style.css">\n${yandexVerification}\n${metrikaCode}\n`;
+        
+        if (htmlContent.includes('</head>')) {
+            htmlContent = htmlContent.replace('</head>', `${headAdditions}</head>`);
+        } else {
+            htmlContent = headAdditions + htmlContent;
+        }
+        
         return res.status(200)
             .setHeader('Content-Type', 'text/html; charset=utf-8')
             .setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800')
