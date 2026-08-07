@@ -261,7 +261,7 @@ if (urlPath === '/sitemap.xml') {
             const contentRange = catResponse.headers.get('content-range') || '';
             const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
-            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title><style>${siteCss}.pagination a.nav-arrow { font-size: 18px; font-weight: 400; transition: transform 0.2s ease, color 0.2s; } .pagination a.arrow-start:hover { transform: translateX(-4px); } .pagination a.arrow-prev:hover { transform: translateX(-3px); } .pagination a.arrow-next:hover { transform: translateX(3px); } .pagination a.arrow-end:hover { transform: translateX(4px); }</style></head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <strong>/</strong> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><span></span><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
+            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css"><style>.pagination a.nav-arrow { font-size: 18px; font-weight: 400; transition: transform 0.2s ease, color 0.2s; } .pagination a.arrow-start:hover { transform: translateX(-4px); } .pagination a.arrow-prev:hover { transform: translateX(-3px); } .pagination a.arrow-next:hover { transform: translateX(3px); } .pagination a.arrow-end:hover { transform: translateX(4px); }</style></head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <strong>/</strong> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><span></span><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
             catPages.forEach((pageItem, index) => {
                 const html = pageItem.html_content || '';
@@ -449,11 +449,16 @@ if (urlPath === '/sitemap.xml') {
 
         htmlContent = htmlContent + jsScripts;
 
-        // --- ВОТ СЮДА ВСТАВЛЯЕМ ВНЕДРЕНИЕ СТИЛЕЙ ИЗ БАЗЫ ---
+        // --- ПОДКЛЮЧАЕМ ВНЕШНИЙ ФАЙЛ СТИЛЕЙ (ОДНОЙ СТРОКОЙ) ---
         if (htmlContent.includes('</head>')) {
-            htmlContent = htmlContent.replace('</head>', `<style>${siteCss}</style></head>`);
+            // Проверяем, нет ли уже подключения стилей, чтобы не дублировать
+            if (!htmlContent.includes('/static/css/style.css')) {
+                htmlContent = htmlContent.replace('</head>', `<link rel="stylesheet" href="/static/css/style.css"></head>`);
+            }
         } else {
-            htmlContent = `<style>${siteCss}</style>` + htmlContent;
+            if (!htmlContent.includes('/static/css/style.css')) {
+                htmlContent = `<link rel="stylesheet" href="/static/css/style.css">` + htmlContent;
+            }
         }
 
         return res.status(200)
