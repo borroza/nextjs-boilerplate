@@ -380,7 +380,20 @@ if (urlPath === '/sitemap.xml') {
        htmlContent = htmlContent.replaceAll('[CURRENT YEAR]', new Date().getFullYear().toString());
         htmlContent = htmlContent.replaceAll('[SITE TITLE]', siteTitle);
 
-        const jsScripts = `<script>...</script></body>`;
+      const jsScripts = `<script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const menuBtn = document.querySelector('.menu-btn');
+            const mainNav = document.querySelector('.main-nav');
+            if (menuBtn && mainNav) {
+                menuBtn.addEventListener('click', function() {
+                    mainNav.classList.toggle('is-open');
+                    const isExpanded = mainNav.classList.contains('is-open');
+                    menuBtn.setAttribute('aria-expanded', isExpanded);
+                });
+            }
+        });
+        </script>`;
+
         htmlContent = htmlContent + jsScripts;
 
         // --- ВОТ СЮДА ВСТАВЛЯЕМ ВНЕДРЕНИЕ СТИЛЕЙ ИЗ БАЗЫ ---
