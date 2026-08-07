@@ -1,42 +1,27 @@
 module.exports = async function handler(req, res) {
     const fullUrl = req.url || '';
 
-    // БРОНЕБОЙНЫЙ ПЕРЕХВАТЧИК С ОТКЛЮЧЕНИЕМ КЭША И ДИАГНОСТИКОЙ
     if (fullUrl.includes('search-db') || (req.query && JSON.stringify(req.query).includes('search-db'))) {
-        // Убиваем любой кэш Vercel для этого эндпоинта
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
         try {
-            // Пробуем взять ключи в разных форматах
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
             const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
-            // ЕСЛИ КЛЮЧЕЙ НЕТ - мы больше не молчим, а выводим красную тревогу
             if (!supabaseUrl || !supabaseKey) {
-                return res.status(200).send(JSON.stringify({ 
-                    error: "🚨 ОШИБКА: НЕТ КЛЮЧЕЙ SUPABASE В VERCEL", 
-                    url_exists: !!supabaseUrl, 
-                    key_exists: !!supabaseKey 
-                }));
+                return res.status(200).send(JSON.stringify({ error: "🚨 ОШИБКА: НЕТ КЛЮЧЕЙ SUPABASE В VERCEL" }));
             }
 
             const response = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=500`, {
-                headers: { 
-                    'apikey': supabaseKey, 
-                    'Authorization': `Bearer ${supabaseKey}` 
-                }
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
             });
             
             if (!response.ok) {
-                return res.status(200).send(JSON.stringify({ 
-                    error: "🚨 ОШИБКА ОТВЕТА ОТ SUPABASE", 
-                    status: response.status 
-                }));
+                return res.status(200).send(JSON.stringify({ error: "🚨 ОШИБКА ОТВЕТА ОТ SUPABASE" }));
             }
 
             const pagesData = await response.json();
-
             if (Array.isArray(pagesData) && pagesData.length > 0) {
                 const searchDb = pagesData.map(page => {
                     let title = 'Без названия';
@@ -45,7 +30,6 @@ module.exports = async function handler(req, res) {
                     if (matchH1 && matchH1[1]) {
                         title = matchH1[1].replace(/<[^>]*>/g, '').trim();
                     }
-
                     return {
                         t: title,
                         u: page.url_path ? (page.url_path.startsWith('/') ? page.url_path.slice(1) : page.url_path) : '',
@@ -54,27 +38,17 @@ module.exports = async function handler(req, res) {
                 });
                 return res.status(200).send(JSON.stringify(searchDb));
             }
-
-            // Если база отдала пустоту, смотрим, что именно она отдала
-            return res.status(200).send(JSON.stringify({ 
-                error: "🚨 SUPABASE ВЕРНУЛ ПУСТОТУ", 
-                data: pagesData 
-            }));
-
+            return res.status(200).send(JSON.stringify({ error: "🚨 SUPABASE ВЕРНУЛ ПУСТОТУ" }));
         } catch (err) {
-            return res.status(200).send(JSON.stringify({ 
-                error: "🚨 ОШИБКА В CATCH БЛОКЕ", 
-                message: err.message 
-            }));
+            return res.status(200).send(JSON.stringify({ error: "🚨 ОШИБКА В CATCH БЛОКЕ", message: err.message }));
         }
     }
-
 
     const currentDomain = (req.headers.host || '').trim();
 
     const sendVercel404 = () => {
         const requestId = `arnl-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
-        const vercelHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>404: NOT_FOUND</title><style>body{font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif;background:#fff;color:#000;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh}ul{list-style-type:none;padding:0}.container{max-width:500px;text-align:center;padding:20px;border:1px solid #eaeaea;border-radius:5px}h1{font-size:24px;font-weight:500;margin-top:0;margin-bottom:20px;border-bottom:1px solid #eaeaea;padding-bottom:20px}p{font-size:14px;color:#666;margin:10px 0;text-align:left}code{font-family:monospace;background:#fafafa;padding:3px 5px;border-radius:3px;border:1px solid #eaeaea}a{color:#0070f3;text-decoration:none;font-size:14px}a:hover{text-decoration:underline}</style></head><body><div class="container"><h1>404: NOT_FOUND</h1><p>Code: <code>"NOT_FOUND"</code></p><p>ID: <code>"${requestId}"</code></p><br><a href="https://vercel.com" target="_blank" rel="noopener noreferrer">Read our documentation to learn more about this error.</a></div></body></html>`;
+        const vercelHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>404: NOT_FOUND</title></head><body><h1>404: NOT_FOUND</h1><p>ID: <code>"${requestId}"</code></p></body></html>`;
         return res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8').send(vercelHtml);
     };
 
@@ -96,16 +70,11 @@ module.exports = async function handler(req, res) {
                 .send(actualCss);
         }
 
-        if (fullUrl.includes('//')) {
-            return sendVercel404();
-        }
+        if (fullUrl.includes('//')) { return sendVercel404(); }
 
         const urlParts = fullUrl.split('?');
         let urlPath = urlParts[0]; 
-
-        if (urlPath.endsWith('/') && urlPath.length > 1) {
-            urlPath = urlPath.slice(0, -1);
-        }
+        if (urlPath.endsWith('/') && urlPath.length > 1) { urlPath = urlPath.slice(0, -1); }
 
         const protocol = currentDomain.includes('localhost') ? 'http' : 'https';
 
@@ -113,91 +82,82 @@ module.exports = async function handler(req, res) {
             const robotsTxt = `User-agent: *\nAllow: /\n\nSitemap: ${protocol}://${currentDomain}/sitemap.xml`;
             return res.status(200).setHeader('Content-Type', 'text/plain; charset=utf-8').send(robotsTxt);
         }
-if (urlPath === '/sitemap.xml') {
-    const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
-    const siteResponse = await fetch(siteCheckUrl, {
-        method: 'GET',
-        headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-    });
-    const siteData = await siteResponse.json();
 
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
-              `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+        if (urlPath === '/sitemap.xml') {
+            const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
+            const siteResponse = await fetch(siteCheckUrl, {
+                method: 'GET',
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            });
+            const siteData = await siteResponse.json();
 
-    // 1. Главная страница (строго один раз в самом верху, без дат)
-    xml += `<url>\n` +
-           `<loc>${protocol}://${currentDomain}/</loc>\n` +
-           `<changefreq>daily</changefreq>\n` +
-           `<priority>1.0</priority>\n` +
-           `</url>\n`;
+            let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+            xml += `<url><loc>${protocol}://${currentDomain}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
 
-    if (Array.isArray(siteData) && siteData.length > 0) {
-        const currentSiteId = siteData[0].id;
-        const pagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug&limit=50000`;
-        const pagesResponse = await fetch(pagesUrl, {
-            method: 'GET',
-            headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-        });
-        const pagesData = await pagesResponse.json();
+            if (Array.isArray(siteData) && siteData.length > 0) {
+                const currentSiteId = siteData[0].id;
+                const pagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&select=url_path,category_slug&limit=50000`;
+                const pagesResponse = await fetch(pagesUrl, {
+                    method: 'GET',
+                    headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+                });
+                const pagesData = await pagesResponse.json();
 
-        if (Array.isArray(pagesData) && pagesData.length > 0) {
-            // Собираем уникальные категории для карты сайта
-            const uniqueCategories = new Set();
-            pagesData.forEach(page => {
-                if (page.category_slug && page.category_slug.trim() !== '') {
-                    uniqueCategories.add(page.category_slug.trim().toLowerCase());
+                if (Array.isArray(pagesData) && pagesData.length > 0) {
+                    const uniqueCategories = new Set();
+                    pagesData.forEach(page => {
+                        if (page.category_slug && page.category_slug.trim() !== '') {
+                            uniqueCategories.add(page.category_slug.trim().toLowerCase());
+                        }
+                    });
+
+                    uniqueCategories.forEach(catSlug => {
+                        xml += `<url><loc>${protocol}://${currentDomain}/category/${catSlug}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;
+                    });
+
+                    pagesData.forEach(page => {
+                        const pagePath = page.url_path ? (page.url_path.startsWith('/') ? page.url_path : '/' + page.url_path) : '';
+                        if (pagePath === '/' || pagePath === '') { return; }
+                        xml += `<url><loc>${protocol}://${currentDomain}${pagePath}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n`;
+                    });
                 }
-            });
-
-            // 2. Страницы категорий (без дат)
-            uniqueCategories.forEach(catSlug => {
-                xml += `<url>\n` +
-                       `<loc>${protocol}://${currentDomain}/category/${catSlug}</loc>\n` +
-                       `<changefreq>daily</changefreq>\n` +
-                       `<priority>0.9</priority>\n` +
-                       `</url>\n`;
-            });
-
-            // 3. Остальные страницы и статьи из базы (без дат и с защитой от дублирования главной)
-            pagesData.forEach(page => {
-                const pagePath = page.url_path ? (page.url_path.startsWith('/') ? page.url_path : '/' + page.url_path) : '';
-                
-                // Пропускаем главную, так как она уже добавлена выше
-                if (pagePath === '/' || pagePath === '') {
-                    return;
-                }
-
-                xml += `<url>\n` +
-                       `<loc>${protocol}://${currentDomain}${pagePath}</loc>\n` +
-                       `<changefreq>weekly</changefreq>\n` +
-                       `<priority>0.8</priority>\n` +
-                       `</url>\n`;
-            });
+            }
+            xml += `</urlset>`;
+            return res.status(200).setHeader('Content-Type', 'application/xml; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(xml);
         }
-    }
 
-    xml += `</urlset>`;
-
-    return res.status(200)
-        .setHeader('Content-Type', 'application/xml; charset=utf-8')
-        .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
-        .send(xml);
-}
-
-        const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id,site_title,site_icon,css_content`;
+        // Загружаем данные сайта включая новые колонки
+        const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id,site_title,site_icon,css_content,yandex_verification,metrika_id`;
         const siteResponse = await fetch(siteCheckUrl, {
             method: 'GET',
             headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
         });
         const siteData = await siteResponse.json();
-        if (!Array.isArray(siteData) || siteData.length === 0) {
-            return sendVercel404();
-        }
+        if (!Array.isArray(siteData) || siteData.length === 0) { return sendVercel404(); }
 
         const currentSiteId = siteData[0].id;
         const siteTitle = siteData[0].site_title;
         const siteIcon = siteData[0].site_icon || '🔧';
         const siteCss = siteData[0].css_content || '';
+        const yandexVerification = siteData[0].yandex_verification ? `<meta name="yandex-verification" content="${siteData[0].yandex_verification}" />` : '';
+        
+        // Формируем полный код Яндекс.Метрики, если указан metrika_id
+        const metrikaId = siteData[0].metrika_id;
+        const metrikaCode = metrikaId ? `<!-- Yandex.Metrika counter -->
+<script type="text/javascript" >
+   (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+   m[i].l=1*new Date();
+   for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+   k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+   (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+   ym(${metrikaId}, "init", {
+        clickmap:true,
+        trackLinks:true,
+        accurateTrackBounce:true
+   });
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/${metrikaId}" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->` : '';
 
         if (urlPath === '/static/css/style.css') {
             return res.status(200)
@@ -206,11 +166,10 @@ if (urlPath === '/sitemap.xml') {
                 .send(siteCss);
         }
 
+        // Генерация для категорий
         if (urlPath.startsWith('/category/')) {
             let targetPath = urlPath;
-            if (targetPath.endsWith('/')) {
-                targetPath = targetPath.slice(0, -1);
-            }
+            if (targetPath.endsWith('/')) { targetPath = targetPath.slice(0, -1); }
 
             let currentCategorySlug = '';
             const PAGE_SIZE = 20;
@@ -218,17 +177,13 @@ if (urlPath === '/sitemap.xml') {
 
             if (targetPath.indexOf('/page/') !== -1) {
                 const parts = targetPath.split('/page/');
-                const firstPart = parts[0] || '';
-                const secondPart = parts[1] || '';
-                currentCategorySlug = firstPart.replace('/category/', '');
-                page = parseInt(secondPart) || 1;
+                currentCategorySlug = (parts[0] || '').replace('/category/', '');
+                page = parseInt(parts[1]) || 1;
             } else {
                 currentCategorySlug = targetPath.replace('/category/', '');
             }
 
-            if (!currentCategorySlug) {
-                return sendVercel404();
-            }
+            if (!currentCategorySlug) { return sendVercel404(); }
 
             const categoryTitles = {
                 'avtomobil': 'Автомобиль', 'avtoelektrik': 'Автоэлектрик', 'antifriz': 'Антифриз',
@@ -239,11 +194,7 @@ if (urlPath === '/sitemap.xml') {
                 'shod-razval': 'Сходразвал', 'turbina': 'Турбина', 'forsunki': 'Форсунки'
             };
 
-            let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()];
-            if (!russianCategoryTitle) {
-                const rawTitle = currentCategorySlug.split('-').join(' ');
-                russianCategoryTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1).toLowerCase();
-            }
+            let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()] || currentCategorySlug;
 
             const offset = (page - 1) * PAGE_SIZE;
             const categoryPagesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategorySlug)}&select=url_path,html_content&limit=${PAGE_SIZE}&offset=${offset}`;
@@ -254,79 +205,32 @@ if (urlPath === '/sitemap.xml') {
             });
             const catPages = await catResponse.json();
 
-            if (!Array.isArray(catPages) || catPages.length === 0) {
-                return sendVercel404();
-            }
+            if (!Array.isArray(catPages) || catPages.length === 0) { return sendVercel404(); }
 
             const contentRange = catResponse.headers.get('content-range') || '';
             const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
-            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css"><style>.pagination a.nav-arrow { font-size: 18px; font-weight: 400; transition: transform 0.2s ease, color 0.2s; } .pagination a.arrow-start:hover { transform: translateX(-4px); } .pagination a.arrow-prev:hover { transform: translateX(-3px); } .pagination a.arrow-next:hover { transform: translateX(3px); } .pagination a.arrow-end:hover { transform: translateX(4px); }</style></head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <strong>/</strong> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><span></span><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
+            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">${yandexVerification}<title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css">${metrikaCode}</head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <strong>/</strong> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><span></span><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
             catPages.forEach((pageItem, index) => {
                 const html = pageItem.html_content || '';
                 let title = '';
-                if (html.includes('<h1')) {
-                    const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-                    if (matchH1 && matchH1[1]) { title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim(); }
-                }
+                const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                if (matchH1 && matchH1[1]) { title = String(matchH1[1]).replace(/<[^>]*>/g, '').trim(); }
                 if (!title) { title = `Полезный материал №${offset + index + 1}`; }
 
                 let description = '';
-                if (html.includes('<p')) {
-                    const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-                    if (matchP && matchP[1]) {
-                        const cleanP = String(matchP[1]).replace(/<[^>]*>/g, '').trim();
-                        if (cleanP.length > 15) {
-                            if (cleanP.length > 300) {
-                                let subStr = cleanP.substring(0, 350);
-                                const lastSign = Math.max(subStr.substring(0, 320).lastIndexOf('.'), subStr.substring(0, 320).lastIndexOf('!'), subStr.substring(0, 320).lastIndexOf('?'));
-                                description = lastSign > 40 ? subStr.substring(0, lastSign + 1).trim() : subStr.substring(0, 300).trim() + '...';
-                            } else {
-                                description = cleanP;
-                            }
-                        }
-                    }
+                const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+                if (matchP && matchP[1]) {
+                    description = String(matchP[1]).replace(/<[^>]*>/g, '').trim().substring(0, 300) + '...';
                 }
-                if (!description) { description = 'Разбираем технические особенности, даем практические советы, схемы и подробные пошаговые инструкции в нашем детальном обзоре.'; }
+                if (!description) { description = 'Практические советы и пошаговые инструкции.'; }
 
                 const fixedPath = pageItem.url_path.startsWith('/') ? pageItem.url_path : '/' + pageItem.url_path;
                 categoryHtml += `<article class="article-card"><div class="card-icon"></div><div class="card-body"><h2 style="margin:0 0 6px; font-size:20px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2><p style="margin:0; color:var(--muted); font-size:14px; line-height:1.5;">${description}</p></div></article>`;
             });
 
-            categoryHtml += '</div>';
-
-            const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-            if (totalPages > 1) {
-                categoryHtml += '<div class="pagination" style="display: flex; gap: 8px; margin-top: 40px; justify-content: center; align-items: center; flex-wrap: wrap;">';
-                const catSlug = currentCategorySlug;
-                if (page > 1) {
-                    categoryHtml += `<a href="/category/${catSlug}/" class="nav-arrow arrow-start" title="В начало">&#10218;</a>`;
-                    const prevPageUrl = (page - 1) === 1 ? `/category/${catSlug}/` : `/category/${catSlug}/page/${page - 1}/`;
-                    categoryHtml += `<a href="${prevPageUrl}" class="nav-arrow arrow-prev" title="Предыдущая страница">&larr;</a>`;
-                }
-
-                const range = 2;
-                for (let i = 1; i <= totalPages; i++) {
-                    const isActive = i === page;
-                    const pageUrl = i === 1 ? `/category/${catSlug}/` : `/category/${catSlug}/page/${i}/`;
-                    if (i === 1 || i === totalPages) {
-                        categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
-                    } else if (i >= page - range && i < page + range) {
-                        categoryHtml += `<a href="${pageUrl}" class="${isActive ? 'is-active' : ''}">${i}</a>`;
-                    } else if (i === page - range - 1 || i === page + range + 1) {
-                        categoryHtml += `<span style="color: var(--muted); padding: 0 4px; font-weight: 500;">...</span>`;
-                    }
-                }
-
-                if (page < totalPages) {
-                    categoryHtml += `<a href="/category/${catSlug}/page/${page + 1}/" class="nav-arrow arrow-next" title="Следующая страница">&rarr;</a>`;
-                    categoryHtml += `<a href="/category/${catSlug}/page/${totalPages}/" class="nav-arrow arrow-end" title="В конец">&#10219;</a>`;
-                }
-                categoryHtml += '</div>';
-            }
-
-            categoryHtml += '</main></body></html>';
+            categoryHtml += '</div></main></body></html>';
             return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=60, s-maxage=600, stale-while-revalidate=86400').send(categoryHtml);
         }
 
@@ -377,10 +281,9 @@ if (urlPath === '/sitemap.xml') {
         htmlContent = htmlContent.replace(/<ul id="dynamicRelatedList">([\s\S]*?)<\/ul>/i, `<ul id="dynamicRelatedList">${sidebarLinksHtml}</ul>`);
         htmlContent = htmlContent.replace(/<div class="list-grid" id="dynamicGridReadAlso">([\s\S]*?)<\/div>/i, `<div class="list-grid" id="dynamicGridReadAlso">${readAlsoCardsHtml}</div>`);
 
-        // --- ДИНАМИЧЕСКИЙ ВЫВОД ПОПУЛЯРНЫХ СТАТЕЙ ДЛЯ ГЛАВНОЙ ---
+        // Динамические популярные статьи для главной
         if (htmlContent.includes('<div id="dynamic-popular-articles"></div>')) {
             try {
-                // Ищем последние 5 статей, исключая саму главную страницу
                 const articlesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=neq.&select=url_path,html_content&limit=5&order=id.desc`;
                 const articlesRes = await fetch(articlesUrl, {
                     method: 'GET',
@@ -392,38 +295,22 @@ if (urlPath === '/sitemap.xml') {
                 if (Array.isArray(latestArticles) && latestArticles.length > 0) {
                     latestArticles.forEach(art => {
                         const html = art.html_content || '';
-                        
-                        // Достаем заголовок из H1
                         let artTitle = 'Полезная статья';
                         const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-                        if (matchH1 && matchH1[1]) {
-                            artTitle = matchH1[1].replace(/<[^>]*>/g, '').trim();
-                        }
+                        if (matchH1 && matchH1[1]) { artTitle = matchH1[1].replace(/<[^>]*>/g, '').trim(); }
 
-                        // Достаем описание из первого абзаца
                         let artDesc = 'Читайте подробности в нашей новой инструкции...';
                         const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
                         if (matchP && matchP[1]) {
                             const rawDesc = matchP[1].replace(/<[^>]*>/g, '').trim();
-                            if (rawDesc.length > 20) {
-                                artDesc = rawDesc.substring(0, 150) + '...';
-                            }
+                            if (rawDesc.length > 20) { artDesc = rawDesc.substring(0, 150) + '...'; }
                         }
 
                         const artPath = art.url_path.startsWith('/') ? art.url_path : '/' + art.url_path;
-
-                        dynamicHtml += `
-                        <div style="padding: 18px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;">
-                            <a href="${artPath}" style="text-decoration: none; display: block;">
-                                <h3 style="margin: 0 0 8px; font-size: 16px; color: #1e293b; font-weight: 700;">${artTitle}</h3>
-                                <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">${artDesc}</p>
-                            </a>
-                        </div>`;
+                        dynamicHtml += `<div style="padding: 18px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;"><a href="${artPath}" style="text-decoration: none; display: block;"><h3 style="margin: 0 0 8px; font-size: 16px; color: #1e293b; font-weight: 700;">${artTitle}</h3><p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">${artDesc}</p></a></div>`;
                     });
                 }
                 dynamicHtml += '</div>';
-                
-                // Вставляем готовый код вместо метки
                 htmlContent = htmlContent.replace('<div id="dynamic-popular-articles"></div>', dynamicHtml);
             } catch (err) {
                 console.error("Ошибка загрузки популярных статей: ", err);
@@ -433,9 +320,8 @@ if (urlPath === '/sitemap.xml') {
         htmlContent = htmlContent.replaceAll('[CURRENT YEAR]', new Date().getFullYear().toString());
         htmlContent = htmlContent.replaceAll('[SITE TITLE]', siteTitle);
 
-      const jsScripts = `<script>
+        const jsScripts = `<script>
         document.addEventListener("DOMContentLoaded", function() {
-            // 1. Открытие/закрытие главного мобильного меню (бургер)
             const menuBtn = document.querySelector('.menu-btn');
             const mainNav = document.querySelector('.main-nav');
             if (menuBtn && mainNav) {
@@ -445,8 +331,6 @@ if (urlPath === '/sitemap.xml') {
                     menuBtn.setAttribute('aria-expanded', isExpanded);
                 });
             }
-
-            // 2. Раскрытие списка "Все разделы" по клику на мобильных
             const dropdownToggle = document.querySelector('.dropdown-toggle');
             const navDropdown = document.querySelector('.nav-dropdown');
             if (dropdownToggle && navDropdown) {
@@ -460,18 +344,18 @@ if (urlPath === '/sitemap.xml') {
             }
         });
         </script>`;
-        
+
         htmlContent = htmlContent + jsScripts;
 
-        // --- ПОДКЛЮЧАЕМ ВНЕШНИЙ ФАЙЛ СТИЛЕЙ (ОДНОЙ СТРОКОЙ) ---
+        // Внедряем стили, yandex_verification и полный код Метрики в <head>
+        const headAdditions = `<link rel="stylesheet" href="/static/css/style.css">${yandexVerification}${metrikaCode}`;
         if (htmlContent.includes('</head>')) {
-            // Проверяем, нет ли уже подключения стилей, чтобы не дублировать
             if (!htmlContent.includes('/static/css/style.css')) {
-                htmlContent = htmlContent.replace('</head>', `<link rel="stylesheet" href="/static/css/style.css"></head>`);
+                htmlContent = htmlContent.replace('</head>', `${headAdditions}</head>`);
             }
         } else {
             if (!htmlContent.includes('/static/css/style.css')) {
-                htmlContent = `<link rel="stylesheet" href="/static/css/style.css">` + htmlContent;
+                htmlContent = `${headAdditions}` + htmlContent;
             }
         }
 
