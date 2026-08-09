@@ -66,7 +66,7 @@ module.exports = async function handler(req, res) {
             const actualCss = Array.isArray(cssData) && cssData.length > 0 ? cssData[0].css_content : '';
             return res.status(200)
                 .setHeader('Content-Type', 'text/css; charset=utf-8')
-                .setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=600')
+                .setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
                 .send(actualCss);
         }
 
@@ -162,7 +162,7 @@ module.exports = async function handler(req, res) {
         if (urlPath === '/static/css/style.css') {
             return res.status(200)
                 .setHeader('Content-Type', 'text/css; charset=utf-8')
-                .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600')
+                .setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
                 .send(siteCss);
         }
 
@@ -210,7 +210,7 @@ module.exports = async function handler(req, res) {
             const contentRange = catResponse.headers.get('content-range') || '';
             const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
-            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">${yandexVerification}<title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css">${metrikaCode}</head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <strong>/</strong> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><span></span><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
+            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">${yandexVerification}<title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css?v=dev">${metrikaCode}</head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <strong>/</strong> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><span></span><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
             catPages.forEach((pageItem, index) => {
                 const html = pageItem.html_content || '';
@@ -353,7 +353,7 @@ module.exports = async function handler(req, res) {
         htmlContent = htmlContent.replace(/<link rel="stylesheet" href="\/static\/css\/style\.css"[^>]*>/gi, '');
 
         // 2. Внедряем всё свежее прямо перед </head>
-        const headAdditions = `\n<link rel="stylesheet" href="/static/css/style.css">\n${yandexVerification}\n${metrikaCode}\n`;
+        const headAdditions = `\n<link rel="stylesheet" href="/static/css/style.css?v=dev">\n${yandexVerification}\n${metrikaCode}\n`;
         
         if (htmlContent.includes('</head>')) {
             htmlContent = htmlContent.replace('</head>', `${headAdditions}</head>`);
