@@ -127,7 +127,6 @@ module.exports = async function handler(req, res) {
             return res.status(200).setHeader('Content-Type', 'application/xml; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(xml);
         }
 
-        // Загружаем данные сайта включая новые колонки
         const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id,site_title,site_icon,css_content,yandex_verification,metrika_id`;
         const siteResponse = await fetch(siteCheckUrl, {
             method: 'GET',
@@ -138,7 +137,6 @@ module.exports = async function handler(req, res) {
 
         const currentSiteId = siteData[0].id;
 
-        // Универсальный вывод .txt файлов из базы
         if (urlPath.endsWith('.txt')) {
             const txtUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content`;
             const txtRes = await fetch(txtUrl, {
@@ -158,7 +156,6 @@ module.exports = async function handler(req, res) {
         const siteCss = siteData[0].css_content || '';
         const yandexVerification = siteData[0].yandex_verification ? `<meta name="yandex-verification" content="${siteData[0].yandex_verification}" />` : '';
         
-        // Формируем полный код Яндекс.Метрики, если указан metrika_id
         const metrikaId = siteData[0].metrika_id;
         const metrikaCode = metrikaId ? `<!-- Yandex.Metrika counter -->
 <script type="text/javascript" >
@@ -183,7 +180,6 @@ module.exports = async function handler(req, res) {
                 .send(siteCss);
         }
 
-        // Генерация для категорий
         if (urlPath.startsWith('/category/')) {
             let targetPath = urlPath;
             if (targetPath.endsWith('/')) { targetPath = targetPath.slice(0, -1); }
@@ -247,22 +243,18 @@ module.exports = async function handler(req, res) {
                 categoryHtml += `<article class="article-card"><div class="card-icon"></div><div class="card-body"><h2 style="margin:0 0 6px; font-size:20px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2><p style="margin:0; color:var(--muted); font-size:14px; line-height:1.5;">${description}</p></div></article>`;
             });
 
-            // === Закрываем блок со списком статей перед пагинацией ===
             categoryHtml += '</div>';
 
-            // === НАЧАЛО БЛОКА ГЕНЕРАЦИИ ПАГИНАЦИИ ===
             const totalPages = Math.ceil(totalCount / PAGE_SIZE);
             
             if (totalPages > 1) {
                 categoryHtml += '<div class="pagination-container" id="pagination">';
                 
-                // Кнопка "Назад"
                 if (page > 1) {
                     const prevPath = page === 2 ? `/category/${currentCategorySlug}` : `/category/${currentCategorySlug}/page/${page - 1}`;
                     categoryHtml += `<a href="${prevPath}">« Назад</a>`;
                 }
                 
-                // Номера страниц
                 for (let i = 1; i <= totalPages; i++) {
                     if (i === page) {
                         categoryHtml += `<span class="current active">${i}</span>`;
@@ -272,7 +264,6 @@ module.exports = async function handler(req, res) {
                     }
                 }
                 
-                // Кнопка "Вперед"
                 if (page < totalPages) {
                     const nextPath = `/category/${currentCategorySlug}/page/${page + 1}`;
                     categoryHtml += `<a href="${nextPath}">Вперед »</a>`;
@@ -280,7 +271,6 @@ module.exports = async function handler(req, res) {
                 
                 categoryHtml += '</div>';
             }
-            // === КОНЕЦ БЛОКА ПАГИНАЦИИ ===
 
             categoryHtml += '</main></body></html>';
             return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=60, s-maxage=600, stale-while-revalidate=86400').send(categoryHtml);
@@ -333,7 +323,6 @@ module.exports = async function handler(req, res) {
         htmlContent = htmlContent.replace(/<ul id="dynamicRelatedList">([\s\S]*?)<\/ul>/i, `<ul id="dynamicRelatedList">${sidebarLinksHtml}</ul>`);
         htmlContent = htmlContent.replace(/<div class="list-grid" id="dynamicGridReadAlso">([\s\S]*?)<\/div>/i, `<div class="list-grid" id="dynamicGridReadAlso">${readAlsoCardsHtml}</div>`);
 
-        // Динамические популярные статьи для главной
         if (htmlContent.includes('<div id="dynamic-popular-articles"></div>')) {
             try {
                 const articlesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=neq.&select=url_path,html_content&limit=5&order=id.desc`;
@@ -379,8 +368,7 @@ module.exports = async function handler(req, res) {
             if (menuBtn && mainNav) {
                 menuBtn.addEventListener('click', function() {
                     mainNav.classList.toggle('is-open');
-                    const isExpanded = mainNav.classList.contains('is-open');
-                    menuBtn.setAttribute('aria-expanded', isExpanded);
+                    menuBtn.setAttribute('aria-expanded', mainNav.classList.contains('is-open'));
                 });
             }
             const dropdownToggle = document.querySelector('.dropdown-toggle');
@@ -390,21 +378,88 @@ module.exports = async function handler(req, res) {
                     e.preventDefault();
                     e.stopPropagation();
                     navDropdown.classList.toggle('is-open');
-                    const isExpanded = navDropdown.classList.contains('is-open');
-                    dropdownToggle.setAttribute('aria-expanded', isExpanded);
+                    dropdownToggle.setAttribute('aria-expanded', navDropdown.classList.contains('is-open'));
                 });
             }
+
+            const pollWrappers = document.querySelectorAll("div[style*='max-width:600px'][style*='border-radius:16px']");
+            
+            pollWrappers.forEach(wrapper => {
+                const options = Array.from(wrapper.querySelectorAll("div[style*='cursor:pointer']"));
+                if(options.length === 0) return;
+
+                let voted = false;
+                
+                options.forEach((opt, index) => {
+                    opt.addEventListener('click', function() {
+                        if (voted) return; 
+                        voted = true;
+
+                        let percentages = options.map(() => Math.floor(Math.random() * 30) + 10);
+                        percentages[index] += 40; 
+                        
+                        let sum = percentages.reduce((a, b) => a + b, 0);
+                        percentages = percentages.map(p => Math.round((p / sum) * 100));
+                        
+                        let diff = 100 - percentages.reduce((a, b) => a + b, 0);
+                        percentages[index] += diff;
+
+                        options.forEach((o, i) => {
+                            o.style.cursor = "default";
+                            o.style.position = "relative";
+                            o.style.overflow = "hidden";
+                            o.style.zIndex = "1";
+
+                            const circle = o.querySelector("span");
+                            if (circle) {
+                                circle.style.backgroundColor = i === index ? "var(--accent)" : "#cbd5e1";
+                                circle.style.borderColor = i === index ? "var(--accent)" : "#cbd5e1";
+                                if (i === index) {
+                                    circle.innerHTML = "<svg viewBox='0 0 24 24' style='width:12px; height:12px; margin-top:1px; fill:none; stroke:white; stroke-width:3; stroke-linecap:round; stroke-linejoin:round;'><polyline points='20 6 9 17 4 12'></polyline></svg>";
+                                    circle.style.display = "flex";
+                                    circle.style.alignItems = "center";
+                                    circle.style.justifyContent = "center";
+                                }
+                            }
+
+                            const bar = document.createElement("div");
+                            bar.style.position = "absolute";
+                            bar.style.left = "0";
+                            bar.style.top = "0";
+                            bar.style.height = "100%";
+                            bar.style.width = "0%"; 
+                            bar.style.backgroundColor = i === index ? "rgba(249, 115, 22, 0.15)" : "rgba(226, 232, 240, 0.5)";
+                            bar.style.zIndex = "-1";
+                            bar.style.transition = "width 0.8s cubic-bezier(0.4, 0, 0.2, 1)";
+                            o.appendChild(bar);
+
+                            const pct = document.createElement("span");
+                            pct.style.marginLeft = "auto";
+                            pct.style.fontWeight = "800";
+                            pct.style.fontSize = "16px";
+                            pct.style.color = i === index ? "var(--accent)" : "#64748b";
+                            pct.style.opacity = "0";
+                            pct.style.transition = "opacity 0.8s 0.3s"; 
+                            pct.innerText = percentages[i] + "%";
+                            o.appendChild(pct);
+
+                            setTimeout(() => {
+                                bar.style.width = percentages[i] + "%";
+                                pct.style.opacity = "1";
+                            }, 50);
+                        });
+                    });
+                });
+            });
         });
         </script>`;
 
         htmlContent = htmlContent + jsScripts;
 
-      // 1. Очищаем HTML от старых зашитых тегов верификации, пустой метрики и старых стилей
         htmlContent = htmlContent.replace(/<meta name="yandex-verification"[^>]*>/gi, '');
         htmlContent = htmlContent.replace(/<!-- Yandex\.Metrika counter -->[\s\S]*?<!-- \/Yandex\.Metrika counter -->/gi, '');
         htmlContent = htmlContent.replace(/<link rel="stylesheet" href="\/static\/css\/style\.css"[^>]*>/gi, '');
 
-        // 2. Внедряем всё свежее прямо перед </head>
         const headAdditions = `\n<link rel="stylesheet" href="/static/css/style.css?v=dev">\n${yandexVerification}\n${metrikaCode}\n`;
         
         if (htmlContent.includes('</head>')) {
