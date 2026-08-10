@@ -82,6 +82,7 @@ module.exports = async function handler(req, res) {
             const robotsTxt = `User-agent: *\nAllow: /\n\nSitemap: ${protocol}://${currentDomain}/sitemap.xml`;
             return res.status(200).setHeader('Content-Type', 'text/plain; charset=utf-8').send(robotsTxt);
         }
+        
 
         if (urlPath === '/sitemap.xml') {
             const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
