@@ -247,7 +247,42 @@ module.exports = async function handler(req, res) {
                 categoryHtml += `<article class="article-card"><div class="card-icon"></div><div class="card-body"><h2 style="margin:0 0 6px; font-size:20px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2><p style="margin:0; color:var(--muted); font-size:14px; line-height:1.5;">${description}</p></div></article>`;
             });
 
-            categoryHtml += '</div></main></body></html>';
+            // === Закрываем блок со списком статей перед пагинацией ===
+            categoryHtml += '</div>';
+
+            // === НАЧАЛО БЛОКА ГЕНЕРАЦИИ ПАГИНАЦИИ ===
+            const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+            
+            if (totalPages > 1) {
+                categoryHtml += '<div class="pagination-container" id="pagination">';
+                
+                // Кнопка "Назад"
+                if (page > 1) {
+                    const prevPath = page === 2 ? `/category/${currentCategorySlug}` : `/category/${currentCategorySlug}/page/${page - 1}`;
+                    categoryHtml += `<a href="${prevPath}">« Назад</a>`;
+                }
+                
+                // Номера страниц
+                for (let i = 1; i <= totalPages; i++) {
+                    if (i === page) {
+                        categoryHtml += `<span class="current active">${i}</span>`;
+                    } else {
+                        const pagePath = i === 1 ? `/category/${currentCategorySlug}` : `/category/${currentCategorySlug}/page/${i}`;
+                        categoryHtml += `<a href="${pagePath}">${i}</a>`;
+                    }
+                }
+                
+                // Кнопка "Вперед"
+                if (page < totalPages) {
+                    const nextPath = `/category/${currentCategorySlug}/page/${page + 1}`;
+                    categoryHtml += `<a href="${nextPath}">Вперед »</a>`;
+                }
+                
+                categoryHtml += '</div>';
+            }
+            // === КОНЕЦ БЛОКА ПАГИНАЦИИ ===
+
+            categoryHtml += '</main></body></html>';
             return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=60, s-maxage=600, stale-while-revalidate=86400').send(categoryHtml);
         }
 
