@@ -137,6 +137,22 @@ module.exports = async function handler(req, res) {
         if (!Array.isArray(siteData) || siteData.length === 0) { return sendVercel404(); }
 
         const currentSiteId = siteData[0].id;
+
+        // Универсальный вывод .txt файлов из базы
+        if (urlPath.endsWith('.txt')) {
+            const txtUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&select=html_content`;
+            const txtRes = await fetch(txtUrl, {
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            });
+            const txtData = await txtRes.json();
+            if (Array.isArray(txtData) && txtData.length > 0) {
+                return res.status(200)
+                    .setHeader('Content-Type', 'text/plain; charset=utf-8')
+                    .send(txtData[0].html_content);
+            }
+            return sendVercel404();
+        }
+
         const siteTitle = siteData[0].site_title;
         const siteIcon = siteData[0].site_icon || '🔧';
         const siteCss = siteData[0].css_content || '';
