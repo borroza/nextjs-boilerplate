@@ -273,7 +273,10 @@ module.exports = async function handler(req, res) {
             }
 
             categoryHtml += '</main></body></html>';
-            return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').setHeader('Cache-Control', 'public, max-age=60, s-maxage=600, stale-while-revalidate=86400').send(categoryHtml);
+            return res.status(200)
+                .setHeader('Content-Type', 'text/html; charset=utf-8')
+                .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=2592000, stale-while-revalidate=2592000')
+                .send(categoryHtml);
         }
 
         if (!urlPath.includes('.') && urlPath !== '/') { return sendVercel404(); }
@@ -470,7 +473,7 @@ module.exports = async function handler(req, res) {
         
         return res.status(200)
             .setHeader('Content-Type', 'text/html; charset=utf-8')
-            .setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800')
+            .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=2592000, stale-while-revalidate=2592000')
             .send(htmlContent);
 
     } catch (err) {
