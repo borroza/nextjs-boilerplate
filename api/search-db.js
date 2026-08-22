@@ -1,5 +1,4 @@
 module.exports = async function handler(req, res) {
-    // Отключаем кэширование, чтобы всегда получать свежие статьи
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
@@ -11,8 +10,7 @@ module.exports = async function handler(req, res) {
             return res.status(200).send('[]');
         }
 
-        // Забираем все страницы из БД
-        const response = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=500`, {
+        const response = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=10000`, {
             headers: { 
                 'apikey': supabaseKey, 
                 'Authorization': `Bearer ${supabaseKey}` 
@@ -35,7 +33,7 @@ module.exports = async function handler(req, res) {
                 }
 
                 let description = '';
-                const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+                const matchP = html.match(/<p[^>]*class=["']?lead["']?[^>]*>([\s\S]*?)<\/p>/i) || html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
                 if (matchP && matchP[1]) {
                     description = matchP[1].replace(/<[^>]*>/g, '').trim().substring(0, 150);
                 }
