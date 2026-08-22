@@ -13,7 +13,7 @@ module.exports = async function handler(req, res) {
                 return res.status(200).send(JSON.stringify({ error: "🚨 ОШИБКА: НЕТ КЛЮЧЕЙ SUPABASE В VERCEL" }));
             }
 
-            const response = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=500`, {
+            const response = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=10000`, {
                 headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
             });
             
@@ -82,7 +82,6 @@ module.exports = async function handler(req, res) {
             const robotsTxt = `User-agent: *\nAllow: /\n\nSitemap: ${protocol}://${currentDomain}/sitemap.xml`;
             return res.status(200).setHeader('Content-Type', 'text/plain; charset=utf-8').send(robotsTxt);
         }
-        
 
         if (urlPath === '/sitemap.xml') {
             const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`;
@@ -151,8 +150,8 @@ module.exports = async function handler(req, res) {
             return sendVercel404();
         }
 
-        const siteTitle = siteData[0].site_title;
-        const siteIcon = siteData[0].site_icon || '🔧';
+        const siteTitle = siteData[0].site_title || 'AutoGuide';
+        const siteIcon = siteData[0].site_icon || '🛠️';
         const siteCss = siteData[0].css_content || '';
         const yandexVerification = siteData[0].yandex_verification ? `<meta name="yandex-verification" content="${siteData[0].yandex_verification}" />` : '';
         
@@ -180,6 +179,23 @@ module.exports = async function handler(req, res) {
                 .send(siteCss);
         }
 
+        const categoryTitles = {
+            'avtomobil': 'Автомобиль', 'avtoelektrik': 'Автоэлектрик', 'antifriz': 'Антифриз',
+            'bamper': 'Бампер', 'generator': 'Генератор', 'dvigatel': 'Двигатель',
+            'zamena': 'Замена', 'kolodki': 'Колодки', 'korobka': 'Коробка',
+            'kuzov': 'Кузов', 'maslo': 'Масло', 'pokraska': 'Покраска',
+            'raznoe': 'Разное', 'remen': 'Ремень', 'remont': 'Ремонт',
+            'shod-razval': 'Сходразвал', 'turbina': 'Турбина', 'forsunki': 'Форсунки'
+        };
+
+        const defaultMenuLinks = `
+            <a href="/category/dvigatel/">Двигатель</a>
+            <a href="/category/kolodki/">Колодки</a>
+            <a href="/category/maslo/">Масло</a>
+            <a href="/category/zamena/">Замена</a>
+            <a href="/category/korobka/">Коробка</a>
+        `.trim();
+
         if (urlPath.startsWith('/category/')) {
             let targetPath = urlPath;
             if (targetPath.endsWith('/')) { targetPath = targetPath.slice(0, -1); }
@@ -198,15 +214,6 @@ module.exports = async function handler(req, res) {
 
             if (!currentCategorySlug) { return sendVercel404(); }
 
-            const categoryTitles = {
-                'avtomobil': 'Автомобиль', 'avtoelektrik': 'Автоэлектрик', 'antifriz': 'Антифриз',
-                'bamper': 'Бампер', 'generator': 'Генератор', 'dvigatel': 'Двигатель',
-                'zamena': 'Замена', 'kolodki': 'Колодки', 'korobka': 'Коробка',
-                'kuzov': 'Кузов', 'maslo': 'Масло', 'pokraska': 'Покраска',
-                'raznoe': 'Разное', 'remen': 'Ремень', 'remont': 'Ремонт',
-                'shod-razval': 'Сходразвал', 'turbina': 'Турбина', 'forsunki': 'Форсунки'
-            };
-
             let russianCategoryTitle = categoryTitles[currentCategorySlug.toLowerCase()] || currentCategorySlug;
 
             const offset = (page - 1) * PAGE_SIZE;
@@ -223,7 +230,7 @@ module.exports = async function handler(req, res) {
             const contentRange = catResponse.headers.get('content-range') || '';
             const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
-            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">${yandexVerification}<title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css?v=dev">${metrikaCode}</head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <strong>/</strong> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><span></span><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
+            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">${yandexVerification}<title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css?v=dev">${metrikaCode}</head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a><nav class="main-nav">${defaultMenuLinks}</nav></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <span>/</span> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
             catPages.forEach((pageItem, index) => {
                 const html = pageItem.html_content || '';
@@ -240,21 +247,18 @@ module.exports = async function handler(req, res) {
                 if (!description) { description = 'Практические советы и пошаговые инструкции.'; }
 
                 const fixedPath = pageItem.url_path.startsWith('/') ? pageItem.url_path : '/' + pageItem.url_path;
-                categoryHtml += `<article class="article-card"><div class="card-icon"></div><div class="card-body"><h2 style="margin:0 0 6px; font-size:20px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2><p style="margin:0; color:var(--muted); font-size:14px; line-height:1.5;">${description}</p></div></article>`;
+                categoryHtml += `<article class="article-card"><div class="card-body"><h2 style="margin:0 0 6px; font-size:18px; font-weight:700;"><a href="${fixedPath}">${title}</a></h2><p style="margin:0; color:var(--text-muted); font-size:14px; line-height:1.5;">${description}</p></div></article>`;
             });
 
             categoryHtml += '</div>';
 
             const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-            
             if (totalPages > 1) {
-                categoryHtml += '<div class="pagination-container" id="pagination">';
-                
+                categoryHtml += '<div class="pagination-container" id="pagination" style="display:flex; gap:8px; margin-top:32px;">';
                 if (page > 1) {
                     const prevPath = page === 2 ? `/category/${currentCategorySlug}` : `/category/${currentCategorySlug}/page/${page - 1}`;
                     categoryHtml += `<a href="${prevPath}">« Назад</a>`;
                 }
-                
                 for (let i = 1; i <= totalPages; i++) {
                     if (i === page) {
                         categoryHtml += `<span class="current active">${i}</span>`;
@@ -263,12 +267,10 @@ module.exports = async function handler(req, res) {
                         categoryHtml += `<a href="${pagePath}">${i}</a>`;
                     }
                 }
-                
                 if (page < totalPages) {
                     const nextPath = `/category/${currentCategorySlug}/page/${page + 1}`;
                     categoryHtml += `<a href="${nextPath}">Вперед »</a>`;
                 }
-                
                 categoryHtml += '</div>';
             }
 
@@ -297,7 +299,9 @@ module.exports = async function handler(req, res) {
         const currentCategory = data[0].category_slug;
         const currentPageId = data[0].id;
 
-        htmlContent = htmlContent.replace(/<table([^>]*?)>/gi, '<div class="table-wrap"><table>').replace(/<\/table>/gi, '</table></div>');
+        if (!htmlContent.includes('class="table-wrap"')) {
+            htmlContent = htmlContent.replace(/<table([^>]*?)>/gi, '<div class="table-wrap"><table$1>').replace(/<\/table>/gi, '</table></div>');
+        }
 
         const relatedUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&category_slug=eq.${encodeURIComponent(currentCategory)}&id=neq.${currentPageId}&select=url_path,html_content&limit=6`;
         const relatedResponse = await fetch(relatedUrl, {
@@ -311,58 +315,26 @@ module.exports = async function handler(req, res) {
         if (Array.isArray(relatedData) && relatedData.length > 0) {
             relatedData.forEach((p, index) => {
                 const h1Match = p.html_content ? p.html_content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) : null;
-                const title = h1Match && h1Match[1] ? h1Match[1].replace(/<[^>]*>/g, '').trim() : 'Читать статью';
+                const title = h1Match && h1Match[1] ? h1Match[1].replace(/<[^>]*>/g, '').trim() : 'Читать инструкцию';
 
                 if (index < 5) {
                     sidebarLinksHtml += `<li><a href="${p.url_path}">${title}</a></li>`;
                 }
-                readAlsoCardsHtml += `<div class="article-card"><div class="card-icon"></div><div class="card-body"><small style="color: var(--primary); font-weight: 600; text-transform: uppercase; font-size: 11px;">${currentCategory || ''}</small><h4 style="margin: 4px 0 0; font-size: 16px;"><a href="${p.url_path}" style="color: var(--text); text-decoration: none; font-weight: 700;">${title}</a></h4></div></div>`;
+                readAlsoCardsHtml += `<div class="article-card"><div class="card-body"><small style="color: var(--accent); font-weight: 700; text-transform: uppercase; font-size: 11px;">${currentCategory || ''}</small><h4 style="margin: 6px 0 0; font-size: 15px;"><a href="${p.url_path}" style="color: var(--text-bright); text-decoration: none;">${title}</a></h4></div></div>`;
             });
         } else {
-            sidebarLinksHtml = '<li>Похожих статей пока нет</li>';
-            readAlsoCardsHtml = '<p>В этой категории пока нет других публикаций.</p>';
+            sidebarLinksHtml = '<li>Похожих инструкций пока нет</li>';
+            readAlsoCardsHtml = '<p style="color:var(--text-muted); font-size:14px;">В этой категории пока нет других публикаций.</p>';
         }
 
         htmlContent = htmlContent.replace(/<ul id="dynamicRelatedList">([\s\S]*?)<\/ul>/i, `<ul id="dynamicRelatedList">${sidebarLinksHtml}</ul>`);
         htmlContent = htmlContent.replace(/<div class="list-grid" id="dynamicGridReadAlso">([\s\S]*?)<\/div>/i, `<div class="list-grid" id="dynamicGridReadAlso">${readAlsoCardsHtml}</div>`);
 
-        if (htmlContent.includes('<div id="dynamic-popular-articles"></div>')) {
-            try {
-                const articlesUrl = `${supabaseUrl}/rest/v1/pages?site_id=eq.${currentSiteId}&url_path=neq.&select=url_path,html_content&limit=5&order=id.desc`;
-                const articlesRes = await fetch(articlesUrl, {
-                    method: 'GET',
-                    headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-                });
-                const latestArticles = await articlesRes.json();
-                
-                let dynamicHtml = '<div style="display: grid; gap: 16px;">';
-                if (Array.isArray(latestArticles) && latestArticles.length > 0) {
-                    latestArticles.forEach(art => {
-                        const html = art.html_content || '';
-                        let artTitle = 'Полезная статья';
-                        const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-                        if (matchH1 && matchH1[1]) { artTitle = matchH1[1].replace(/<[^>]*>/g, '').trim(); }
-
-                        let artDesc = 'Читайте подробности в нашей новой инструкции...';
-                        const matchP = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-                        if (matchP && matchP[1]) {
-                            const rawDesc = matchP[1].replace(/<[^>]*>/g, '').trim();
-                            if (rawDesc.length > 20) { artDesc = rawDesc.substring(0, 150) + '...'; }
-                        }
-
-                        const artPath = art.url_path.startsWith('/') ? art.url_path : '/' + art.url_path;
-                        dynamicHtml += `<div style="padding: 18px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;"><a href="${artPath}" style="text-decoration: none; display: block;"><h3 style="margin: 0 0 8px; font-size: 16px; color: #1e293b; font-weight: 700;">${artTitle}</h3><p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">${artDesc}</p></a></div>`;
-                    });
-                }
-                dynamicHtml += '</div>';
-                htmlContent = htmlContent.replace('<div id="dynamic-popular-articles"></div>', dynamicHtml);
-            } catch (err) {
-                console.error("Ошибка загрузки популярных статей: ", err);
-            }
-        }
-
-        htmlContent = htmlContent.replaceAll('[CURRENT YEAR]', new Date().getFullYear().toString());
+        htmlContent = htmlContent.replaceAll('[CURRENT YEAR]', '2026');
+        htmlContent = htmlContent.replaceAll('[SITE_TITLE]', siteTitle);
         htmlContent = htmlContent.replaceAll('[SITE TITLE]', siteTitle);
+        htmlContent = htmlContent.replaceAll('[SITE_ICON]', siteIcon);
+        htmlContent = htmlContent.replaceAll('[MENU_LINKS]', defaultMenuLinks);
 
         const jsScripts = `<script>
         document.addEventListener("DOMContentLoaded", function() {
@@ -370,87 +342,36 @@ module.exports = async function handler(req, res) {
             const mainNav = document.querySelector('.main-nav');
             if (menuBtn && mainNav) {
                 menuBtn.addEventListener('click', function() {
-                    mainNav.classList.toggle('is-open');
-                    menuBtn.setAttribute('aria-expanded', mainNav.classList.contains('is-open'));
-                });
-            }
-            const dropdownToggle = document.querySelector('.dropdown-toggle');
-            const navDropdown = document.querySelector('.nav-dropdown');
-            if (dropdownToggle && navDropdown) {
-                dropdownToggle.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    navDropdown.classList.toggle('is-open');
-                    dropdownToggle.setAttribute('aria-expanded', navDropdown.classList.contains('is-open'));
+                    mainNav.classList.toggle('active');
                 });
             }
 
-            const pollWrappers = document.querySelectorAll("div[style*='max-width:600px'][style*='border-radius:16px']");
-            
-            pollWrappers.forEach(wrapper => {
-                const options = Array.from(wrapper.querySelectorAll("div[style*='cursor:pointer']"));
-                if(options.length === 0) return;
-
-                let voted = false;
-                
-                options.forEach((opt, index) => {
-                    opt.addEventListener('click', function() {
-                        if (voted) return; 
-                        voted = true;
-
-                        let percentages = options.map(() => Math.floor(Math.random() * 30) + 10);
-                        percentages[index] += 40; 
-                        
-                        let sum = percentages.reduce((a, b) => a + b, 0);
-                        percentages = percentages.map(p => Math.round((p / sum) * 100));
-                        
-                        let diff = 100 - percentages.reduce((a, b) => a + b, 0);
-                        percentages[index] += diff;
-
-                        options.forEach((o, i) => {
-                            o.style.cursor = "default";
-                            o.style.position = "relative";
-                            o.style.overflow = "hidden";
-                            o.style.zIndex = "1";
-
-                            const circle = o.querySelector("span");
-                            if (circle) {
-                                circle.style.backgroundColor = i === index ? "var(--accent)" : "#cbd5e1";
-                                circle.style.borderColor = i === index ? "var(--accent)" : "#cbd5e1";
-                                if (i === index) {
-                                    circle.innerHTML = "<svg viewBox='0 0 24 24' style='width:12px; height:12px; margin-top:1px; fill:none; stroke:white; stroke-width:3; stroke-linecap:round; stroke-linejoin:round;'><polyline points='20 6 9 17 4 12'></polyline></svg>";
-                                    circle.style.display = "flex";
-                                    circle.style.alignItems = "center";
-                                    circle.style.justifyContent = "center";
-                                }
-                            }
-
-                            const bar = document.createElement("div");
-                            bar.style.position = "absolute";
-                            bar.style.left = "0";
-                            bar.style.top = "0";
-                            bar.style.height = "100%";
-                            bar.style.width = "0%"; 
-                            bar.style.backgroundColor = i === index ? "rgba(249, 115, 22, 0.15)" : "rgba(226, 232, 240, 0.5)";
-                            bar.style.zIndex = "-1";
-                            bar.style.transition = "width 0.8s cubic-bezier(0.4, 0, 0.2, 1)";
-                            o.appendChild(bar);
-
-                            const pct = document.createElement("span");
-                            pct.style.marginLeft = "auto";
-                            pct.style.fontWeight = "800";
-                            pct.style.fontSize = "16px";
-                            pct.style.color = i === index ? "var(--accent)" : "#64748b";
-                            pct.style.opacity = "0";
-                            pct.style.transition = "opacity 0.8s 0.3s"; 
-                            pct.innerText = percentages[i] + "%";
-                            o.appendChild(pct);
-
-                            setTimeout(() => {
-                                bar.style.width = percentages[i] + "%";
-                                pct.style.opacity = "1";
-                            }, 50);
+            // Интерактивный опрос
+            const pollBlocks = document.querySelectorAll('.poll-widget');
+            pollBlocks.forEach(poll => {
+                const buttons = poll.querySelectorAll('button');
+                buttons.forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const totalVotes = Math.floor(Math.random() * 80) + 120;
+                        buttons.forEach((b, idx) => {
+                            b.disabled = true;
+                            b.style.cursor = 'default';
+                            const pct = idx === 0 ? 54 : (idx === 1 ? 28 : (idx === 2 ? 12 : 6));
+                            b.innerHTML = b.innerText + ' <span style="float:right; color:var(--accent); font-weight:700;">' + pct + '%</span>';
                         });
+                    }, { once: true });
+                });
+            });
+
+            // Чек-лист
+            const checkBlocks = document.querySelectorAll('.checklist-block');
+            checkBlocks.forEach(block => {
+                const boxes = block.querySelectorAll('input[type="checkbox"]');
+                const countDisplay = block.querySelector('.check-count');
+                boxes.forEach(box => {
+                    box.addEventListener('change', () => {
+                        const checked = block.querySelectorAll('input[type="checkbox"]:checked').length;
+                        if(countDisplay) countDisplay.textContent = checked;
                     });
                 });
             });
