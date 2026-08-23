@@ -112,7 +112,7 @@ module.exports = async function handler(req, res) {
                     });
 
                     uniqueCategories.forEach(catSlug => {
-                        xml += `<url><loc>${protocol}://${currentDomain}/category/${catSlug}</loc><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;
+                        xml += `<url><loc>${protocol}://${currentDomain}/category/${catSlug}/</loc><changefreq>daily</changefreq><priority>0.9</priority></url>\n`;
                     });
 
                     pagesData.forEach(page => {
@@ -197,8 +197,7 @@ module.exports = async function handler(req, res) {
         `.trim();
 
         if (urlPath.startsWith('/category/')) {
-            let targetPath = urlPath;
-            if (targetPath.endsWith('/')) { targetPath = targetPath.slice(0, -1); }
+            let targetPath = urlPath.replace(/\/+$/, '');
 
             let currentCategorySlug = '';
             const PAGE_SIZE = 20;
@@ -256,14 +255,14 @@ module.exports = async function handler(req, res) {
             if (totalPages > 1) {
                 categoryHtml += '<div class="pagination-container" id="pagination" style="display:flex; gap:8px; margin-top:32px;">';
                 if (page > 1) {
-                    const prevPath = page === 2 ? `/category/${currentCategorySlug}` : `/category/${currentCategorySlug}/page/${page - 1}`;
+                    const prevPath = page === 2 ? `/category/${currentCategorySlug}/` : `/category/${currentCategorySlug}/page/${page - 1}`;
                     categoryHtml += `<a href="${prevPath}">« Назад</a>`;
                 }
                 for (let i = 1; i <= totalPages; i++) {
                     if (i === page) {
                         categoryHtml += `<span class="current active">${i}</span>`;
                     } else {
-                        const pagePath = i === 1 ? `/category/${currentCategorySlug}` : `/category/${currentCategorySlug}/page/${i}`;
+                        const pagePath = i === 1 ? `/category/${currentCategorySlug}/` : `/category/${currentCategorySlug}/page/${i}`;
                         categoryHtml += `<a href="${pagePath}">${i}</a>`;
                     }
                 }
@@ -274,7 +273,7 @@ module.exports = async function handler(req, res) {
                 categoryHtml += '</div>';
             }
 
-            categoryHtml += '</main></body></html>';
+            categoryHtml += '</main><script src="/script.js"></script></body></html>';
             return res.status(200)
                 .setHeader('Content-Type', 'text/html; charset=utf-8')
                 .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=2592000, stale-while-revalidate=2592000')
@@ -336,50 +335,6 @@ module.exports = async function handler(req, res) {
         htmlContent = htmlContent.replaceAll('[SITE_ICON]', siteIcon);
         htmlContent = htmlContent.replaceAll('[MENU_LINKS]', defaultMenuLinks);
 
-        const jsScripts = `<script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const menuBtn = document.querySelector('.menu-btn');
-            const mainNav = document.querySelector('.main-nav');
-            if (menuBtn && mainNav) {
-                menuBtn.addEventListener('click', function() {
-                    mainNav.classList.toggle('active');
-                });
-            }
-
-            // Интерактивный опрос
-            const pollBlocks = document.querySelectorAll('.poll-widget');
-            pollBlocks.forEach(poll => {
-                const buttons = poll.querySelectorAll('button');
-                buttons.forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const totalVotes = Math.floor(Math.random() * 80) + 120;
-                        buttons.forEach((b, idx) => {
-                            b.disabled = true;
-                            b.style.cursor = 'default';
-                            const pct = idx === 0 ? 54 : (idx === 1 ? 28 : (idx === 2 ? 12 : 6));
-                            b.innerHTML = b.innerText + ' <span style="float:right; color:var(--accent); font-weight:700;">' + pct + '%</span>';
-                        });
-                    }, { once: true });
-                });
-            });
-
-            // Чек-лист
-            const checkBlocks = document.querySelectorAll('.checklist-block');
-            checkBlocks.forEach(block => {
-                const boxes = block.querySelectorAll('input[type="checkbox"]');
-                const countDisplay = block.querySelector('.check-count');
-                boxes.forEach(box => {
-                    box.addEventListener('change', () => {
-                        const checked = block.querySelectorAll('input[type="checkbox"]:checked').length;
-                        if(countDisplay) countDisplay.textContent = checked;
-                    });
-                });
-            });
-        });
-        </script>`;
-
-        htmlContent = htmlContent + jsScripts;
-
         htmlContent = htmlContent.replace(/<meta name="yandex-verification"[^>]*>/gi, '');
         htmlContent = htmlContent.replace(/<!-- Yandex\.Metrika counter -->[\s\S]*?<!-- \/Yandex\.Metrika counter -->/gi, '');
         htmlContent = htmlContent.replace(/<link rel="stylesheet" href="\/static\/css\/style\.css"[^>]*>/gi, '');
@@ -390,6 +345,10 @@ module.exports = async function handler(req, res) {
             htmlContent = htmlContent.replace('</head>', `${headAdditions}</head>`);
         } else {
             htmlContent = headAdditions + htmlContent;
+        }
+
+        if (!htmlContent.includes('/script.js') && htmlContent.includes('</body>')) {
+            htmlContent = htmlContent.replace('</body>', '<script src="/script.js"></script></body>');
         }
         
         return res.status(200)
