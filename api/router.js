@@ -1,5 +1,5 @@
 module.exports = async function handler(req, res) {
-    const fullUrl = req.url || '';
+     const fullUrl = req.url || '';
 
     if (fullUrl.includes('search-db') || (req.query && JSON.stringify(req.query).includes('search-db'))) {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
