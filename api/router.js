@@ -180,14 +180,24 @@ module.exports = async function handler(req, res) {
                 .send(siteCss);
         }
 
+        
         const categoryTitles = {
             'avtomobil': 'Автомобиль', 'avtoelektrik': 'Автоэлектрик', 'antifriz': 'Антифриз',
             'bamper': 'Бампер', 'generator': 'Генератор', 'dvigatel': 'Двигатель',
             'zamena': 'Замена', 'kolodki': 'Колодки', 'korobka': 'Коробка',
             'kuzov': 'Кузов', 'maslo': 'Масло', 'pokraska': 'Покраска',
             'raznoe': 'Разное', 'remen': 'Ремень', 'remont': 'Ремонт',
-            'shod-razval': 'Сходразвал', 'turbina': 'Турбина', 'forsunki': 'Форсунки'
+            'shod-razval': 'Сходразвал', 'turbina': 'Турбина', 'forsunki': 'Форсунки',
+            'podveska': 'Подвеска', 'tormoza': 'Тормоза', 'starter': 'Стартер',
+            'akkumulyator': 'Аккумулятор', 'sceplenie': 'Сцепление', 'kondicioner': 'Кондиционер',
+            'svechi': 'Свечи', 'filtry': 'Фильтры', 'stekla': 'Стёкла',
+            'rulevoe': 'Рулевое', 'vyhlop': 'Выхлоп', 'ohlazhdenie': 'Охлаждение',
+            'diagnostika': 'Диагностика', 'shiny': 'Шины', 'fary': 'Фары',
+            'datchiki': 'Датчики', 'elektro': 'Электромобили', 'dokumenty': 'Документы',
+            'gbo': 'ГБО', 'pritsepy': 'Прицепы', 'pechka': 'Печка',
+            'salon': 'Салон', 'dizel': 'Дизель', 'privod': 'Привод'
         };
+
 
         const defaultMenuLinks = `
             <a href="/category/dvigatel/">Двигатель</a>
