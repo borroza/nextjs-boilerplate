@@ -151,6 +151,18 @@ module.exports = async function handler(req, res) {
             return sendVercel404();
         }
 
+        if (urlPath === '/favicon.ico') {
+            try {
+                const favUrl = `${supabaseUrl}/storage/v1/object/public/sites-assets/site_id_${currentSiteId}/favicon-32.png`;
+                const favRes = await fetch(favUrl, { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` } });
+                if (favRes.ok) {
+                    const buf = Buffer.from(await favRes.arrayBuffer());
+                    return res.status(200).setHeader('Content-Type', 'image/png').setHeader('Cache-Control', 'public, max-age=604800, s-maxage=2592000').send(buf);
+                }
+            } catch (e) {}
+            return sendVercel404();
+        }
+
         const siteTitle = siteData[0].site_title || 'AutoGuide';
         const siteIcon = siteData[0].site_icon || '🛠️';
         const siteCss = siteData[0].css_content || '';
@@ -180,7 +192,6 @@ module.exports = async function handler(req, res) {
                 .send(siteCss);
         }
 
-        
         const categoryTitles = {
             'avtomobil': 'Автомобиль', 'avtoelektrik': 'Автоэлектрик', 'antifriz': 'Антифриз',
             'bamper': 'Бампер', 'generator': 'Генератор', 'dvigatel': 'Двигатель',
@@ -197,7 +208,6 @@ module.exports = async function handler(req, res) {
             'gbo': 'ГБО', 'pritsepy': 'Прицепы', 'pechka': 'Печка',
             'salon': 'Салон', 'dizel': 'Дизель', 'privod': 'Привод'
         };
-
 
         const defaultMenuLinks = `
             <a href="/category/dvigatel/">Двигатель</a>
@@ -240,7 +250,7 @@ module.exports = async function handler(req, res) {
             const contentRange = catResponse.headers.get('content-range') || '';
             const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
-            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">${yandexVerification}<title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css?v=dev">${metrikaCode}</head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a><nav class="main-nav">${defaultMenuLinks}</nav></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <span>/</span> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
+            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="icon" type="image/png" href="/favicon.ico">${yandexVerification}<title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css?v=dev">${metrikaCode}</head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a><nav class="main-nav">${defaultMenuLinks}</nav></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <span>/</span> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
             catPages.forEach((pageItem, index) => {
                 const html = pageItem.html_content || '';
@@ -350,7 +360,7 @@ module.exports = async function handler(req, res) {
         htmlContent = htmlContent.replace(/<!-- Yandex\.Metrika counter -->[\s\S]*?<!-- \/Yandex\.Metrika counter -->/gi, '');
         htmlContent = htmlContent.replace(/<link rel="stylesheet" href="\/static\/css\/style\.css"[^>]*>/gi, '');
 
-        const headAdditions = `\n<link rel="stylesheet" href="/static/css/style.css?v=dev">\n${yandexVerification}\n${metrikaCode}\n`;
+        const headAdditions = `\n<link rel="icon" type="image/png" href="/favicon.ico">\n<link rel="stylesheet" href="/static/css/style.css?v=dev">\n${yandexVerification}\n${metrikaCode}\n`;
         
         if (htmlContent.includes('</head>')) {
             htmlContent = htmlContent.replace('</head>', `${headAdditions}</head>`);
@@ -371,3 +381,4 @@ module.exports = async function handler(req, res) {
         return res.status(500).send('Internal Error: ' + err.message);
     }
 };
+
