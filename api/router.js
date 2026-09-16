@@ -78,8 +78,10 @@ module.exports = async function handler(req, res) {
         if (cached && (Date.now() - cached.ts) < 600000) { return cached.cats; }
         let cats = [];
         try {
-            const r = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${siteId}&select=category_slug&limit=1000`, {
-                headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
+            const sUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            const sKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+            const r = await fetch(`${sUrl}/rest/v1/pages?site_id=eq.${siteId}&select=category_slug&limit=1000`, {
+                headers: { apikey: sKey, Authorization: `Bearer ${sKey}` }
             });
             const data = await r.json();
             const set = new Set();
