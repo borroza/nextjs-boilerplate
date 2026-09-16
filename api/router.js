@@ -432,6 +432,34 @@ module.exports = async function handler(req, res) {
         const htmlCacheControl = urlPath === '/'
             ? 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400'
             : 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800';
+
+        // ===== КОНТРОЛЬ РОБОТОВ: bot_at в очередь + глобальный счётчик по движкам =====
+        const ua = (req.headers['user-agent'] || '');
+        let botEng = /Yandex/i.test(ua) ? 'yandex'
+                   : /bing/i.test(ua) ? 'bing'
+                   : /Seznam/i.test(ua) ? 'seznam'
+                   : /Yeti|Naver/i.test(ua) ? 'naver'
+                   : /yep/i.test(ua) ? 'yep'
+                   : (/bot|crawl|spider|slurp/i.test(ua) ? 'other' : null);
+        if (botEng !== null) {
+            try {
+                await fetch(`${supabaseUrl}/rest/v1/rpc/bot_hit`, {
+                    method: 'POST',
+                    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ p_eng: botEng })
+                });
+            } catch (e) {}
+            if (urlPath.endsWith('.html')) {
+                try {
+                    await fetch(`${supabaseUrl}/rest/v1/indexnow_queue?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&bot_at=is.null`, {
+                        method: 'PATCH',
+                        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+                        body: JSON.stringify({ bot_at: new Date().toISOString() })
+                    });
+                } catch (e) {}
+            }
+        }
+
         return res.status(200)
             .setHeader('Content-Type', 'text/html; charset=utf-8')
             .setHeader('Cache-Control', htmlCacheControl)
