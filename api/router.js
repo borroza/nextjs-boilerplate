@@ -48,7 +48,54 @@ module.exports = async function handler(req, res) {
     const currentDomain = (req.headers.host || '').trim();
 
     // ===== ЕДИНЫЙ ФУТЕР СЕТИ: единственный источник, инжектится во все страницы =====
-    const buildFooter = (siteTitle, siteIcon) => {
+    // категории в шапке/подвале — только реально существующие у сайта (иначе 404 роботу)
+    const categoryTitles = {
+        'avtomobil': 'Автомобиль', 'avtoelektrik': 'Автоэлектрик', 'antifriz': 'Антифриз',
+        'bamper': 'Бампер', 'generator': 'Генератор', 'dvigatel': 'Двигатель и ГРМ',
+        'zamena': 'Замена', 'kolodki': 'Тормозная система', 'korobka': 'Трансмиссия и АКПП',
+        'kuzov': 'Кузовной ремонт', 'maslo': 'Замена техжидкостей', 'pokraska': 'Покраска',
+        'raznoe': 'Разное', 'remen': 'Ремень', 'remont': 'Ремонт',
+        'shodrazval': 'Сходразвал', 'turbina': 'Турбина', 'forsunki': 'Форсунки',
+        'podveska': 'Подвеска', 'tormoza': 'Тормоза', 'starter': 'Стартер',
+        'akkumulyator': 'Аккумулятор', 'sceplenie': 'Сцепление', 'kondicioner': 'Кондиционер',
+        'svechi': 'Свечи', 'filtry': 'Фильтры', 'stekla': 'Стёкла',
+        'rulevoe': 'Рулевое', 'vyhlop': 'Выхлоп', 'ohlazhdenie': 'Охлаждение',
+        'diagnostika': 'Диагностика', 'shiny': 'Шины', 'fary': 'Фары',
+        'datchiki': 'Датчики', 'elektromobili': 'Электромобили', 'dokumenty': 'Документы',
+        'gbo': 'ГБО', 'pritsepy': 'Прицепы', 'pechka': 'Печка',
+        'salon': 'Салон', 'dizel': 'Дизель', 'privod': 'Привод'
+    };
+    const buildMenuLinks = (cats) => {
+        if (!cats || cats.length === 0) { return ''; }
+        return cats.slice(0, 6).map(c =>
+            `<a href="/category/${c}/">${categoryTitles[c] || c}</a>`).join('');
+    };
+
+    // кэш категорий сайта на время жизни инстанса (10 минут)
+    const siteCatsCache = global.__siteCatsCache || (global.__siteCatsCache = new Map());
+    const getSiteCats = async (siteId) => {
+        const cached = siteCatsCache.get(siteId);
+        if (cached && (Date.now() - cached.ts) < 600000) { return cached.cats; }
+        let cats = [];
+        try {
+            const r = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${siteId}&select=category_slug&limit=1000`, {
+                headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
+            });
+            const data = await r.json();
+            const set = new Set();
+            if (Array.isArray(data)) {
+                for (const row of data) {
+                    const c = (row.category_slug || '').trim().toLowerCase();
+                    if (c !== '') { set.add(c); }
+                }
+            }
+            cats = Array.from(set);
+        } catch (e) {}
+        siteCatsCache.set(siteId, { ts: Date.now(), cats: cats });
+        return cats;
+    };
+
+    const buildFooter = (siteTitle, siteIcon, menuLinks) => {
         const year = new Date().getFullYear();
         const descVars = [
             `<strong>${siteTitle}</strong> \u2014 справочник по устройству и обслуживанию автомобильных систем: физика процессов, регламентные операции, типовые дефекты узлов.`,
@@ -78,13 +125,7 @@ module.exports = async function handler(req, res) {
         </div>
         <div>
             <h3>Узлы и агрегаты</h3>
-            <nav>
-                <a href="/category/dvigatel/">Двигатель и ГРМ</a>
-                <a href="/category/kolodki/">Тормозная система</a>
-                <a href="/category/kuzov/">Кузовной ремонт</a>
-                <a href="/category/korobka/">Трансмиссия и АКПП</a>
-                <a href="/category/maslo/">Замена техжидкостей</a>
-            </nav>
+            <nav>${menuLinks}</nav>
         </div>
     </div>
     <div class="copyright">
@@ -95,10 +136,11 @@ module.exports = async function handler(req, res) {
     </div>
 </footer>`;
     };
-    // вырезает зашитый футер (из шаблона генерации) и ставит канонический
-    const injectFooter = (html, siteTitle, siteIcon) => {
+    // вырезает зашитый футер и шапочное меню (из шаблона генерации), ставит канонические
+    const injectFooter = (html, siteTitle, siteIcon, menuLinks) => {
         let out = html.replace(/<footer class="site-footer"[^>]*>[\s\S]*?<\/footer>/i, '');
-        out = out.replace('</body>', buildFooter(siteTitle, siteIcon) + '</body>');
+        out = out.replace(/<nav class="main-nav">[\s\S]*?<\/nav>/i, `<nav class="main-nav">${menuLinks}</nav>`);
+        out = out.replace('</body>', buildFooter(siteTitle, siteIcon, menuLinks) + '</body>');
         return out;
     };
 
@@ -264,13 +306,8 @@ module.exports = async function handler(req, res) {
             'salon': 'Салон', 'dizel': 'Дизель', 'privod': 'Привод'
         };
 
-        const defaultMenuLinks = `
-            <a href="/category/dvigatel/">Двигатель</a>
-            <a href="/category/kolodki/">Колодки</a>
-            <a href="/category/maslo/">Масло</a>
-            <a href="/category/zamena/">Замена</a>
-            <a href="/category/korobka/">Коробка</a>
-        `.trim();
+        // меню шапки/подвала: только категории, реально существующие у сайта
+        const menuLinks = buildMenuLinks(await getSiteCats(currentSiteId));
 
         if (urlPath.startsWith('/category/')) {
             let targetPath = urlPath.replace(/\/+$/, '');
@@ -305,7 +342,7 @@ module.exports = async function handler(req, res) {
             const contentRange = catResponse.headers.get('content-range') || '';
             const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
-            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="icon" type="image/png" href="/favicon.ico">${yandexVerification}<title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css?v=dev">${metrikaCode}</head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a><nav class="main-nav">${defaultMenuLinks}</nav></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <span>/</span> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
+            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="icon" type="image/png" href="/favicon.ico">${yandexVerification}<title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css?v=dev">${metrikaCode}</head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a><nav class="main-nav">${menuLinks}</nav></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <span>/</span> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
             catPages.forEach((pageItem, index) => {
                 const html = pageItem.html_content || '';
@@ -349,7 +386,7 @@ module.exports = async function handler(req, res) {
                 categoryHtml += '</div>';
             }
 
-            categoryHtml += '</main>' + buildFooter(siteTitle, siteIcon) + '<script src="/script.js"></script></body></html>';
+            categoryHtml += '</main>' + buildFooter(siteTitle, siteIcon, menuLinks) + '<script src="/script.js"></script></body></html>';
             return res.status(200)
                 .setHeader('Content-Type', 'text/html; charset=utf-8')
                 .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400')
@@ -409,7 +446,7 @@ module.exports = async function handler(req, res) {
         htmlContent = htmlContent.replaceAll('[SITE_TITLE]', siteTitle);
         htmlContent = htmlContent.replaceAll('[SITE TITLE]', siteTitle);
         htmlContent = htmlContent.replaceAll('[SITE_ICON]', siteIcon);
-        htmlContent = htmlContent.replaceAll('[MENU_LINKS]', defaultMenuLinks);
+        htmlContent = htmlContent.replaceAll('[MENU_LINKS]', menuLinks);
 
         htmlContent = htmlContent.replace(/<meta name="yandex-verification"[^>]*>/gi, '');
         htmlContent = htmlContent.replace(/<!-- Yandex\.Metrika counter -->[\s\S]*?<!-- \/Yandex\.Metrika counter -->/gi, '');
@@ -470,7 +507,7 @@ module.exports = async function handler(req, res) {
         return res.status(200)
             .setHeader('Content-Type', 'text/html; charset=utf-8')
             .setHeader('Cache-Control', htmlCacheControl)
-            .send(injectFooter(htmlContent, siteTitle, siteIcon));
+            .send(injectFooter(htmlContent, siteTitle, siteIcon, menuLinks));
 
     } catch (err) {
         return res.status(500).send('Internal Error: ' + err.message);
