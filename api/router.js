@@ -47,6 +47,61 @@ module.exports = async function handler(req, res) {
 
     const currentDomain = (req.headers.host || '').trim();
 
+    // ===== ЕДИНЫЙ ФУТЕР СЕТИ: единственный источник, инжектится во все страницы =====
+    const buildFooter = (siteTitle, siteIcon) => {
+        const year = new Date().getFullYear();
+        const descVars = [
+            `<strong>${siteTitle}</strong> \u2014 справочник по устройству и обслуживанию автомобильных систем: физика процессов, регламентные операции, типовые дефекты узлов.`,
+            `Ресурс <strong>${siteTitle}</strong> посвящён диагностике и ремонту техники: нормативные параметры, необходимый инструмент и порядок контроля результата работ.`,
+            `<strong>${siteTitle}</strong> собирает инженерные материалы для автовладельцев: от принципов работы агрегатов до критериев оценки их состояния и износа.`,
+            `На страницах <strong>${siteTitle}</strong> собраны материалы о регламентных операциях: периодичность обслуживания, допуски рабочих жидкостей и контрольные параметры узлов.`,
+            `Проект <strong>${siteTitle}</strong> описывает автомобильные системы языком техники: причина неисправности, логика проверки и условие работоспособности узла.`
+        ];
+        let hash = 0;
+        const seed = currentDomain || '';
+        for (let i = 0; i < seed.length; i++) { hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0; }
+        const desc = descVars[Math.abs(hash) % descVars.length];
+        return `<footer class="site-footer">
+    <div class="container footer-grid">
+        <div>
+            <div class="footer-logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</div>
+            <p>${desc}</p>
+        </div>
+        <div>
+            <h3>Разделы</h3>
+            <nav>
+                <a href="/about.html">О проекте</a>
+                <a href="/contacts.html">Контакты</a>
+                <a href="/privacy.html">Политика конфиденциальности</a>
+                <a href="/sitemap.xml">Карта сайта XML</a>
+            </nav>
+        </div>
+        <div>
+            <h3>Узлы и агрегаты</h3>
+            <nav>
+                <a href="/category/dvigatel/">Двигатель и ГРМ</a>
+                <a href="/category/kolodki/">Тормозная система</a>
+                <a href="/category/kuzov/">Кузовной ремонт</a>
+                <a href="/category/korobka/">Трансмиссия и АКПП</a>
+                <a href="/category/maslo/">Замена техжидкостей</a>
+            </nav>
+        </div>
+    </div>
+    <div class="copyright">
+        <div class="container">
+            <span>&copy; ${year} ${siteTitle}</span>
+            <span>Все права защищены</span>
+        </div>
+    </div>
+</footer>`;
+    };
+    // вырезает зашитый футер (из шаблона генерации) и ставит канонический
+    const injectFooter = (html, siteTitle, siteIcon) => {
+        let out = html.replace(/<footer class="site-footer">[\s\S]*?<\/footer>/i, '');
+        out = out.replace('</body>', buildFooter(siteTitle, siteIcon) + '</body>');
+        return out;
+    };
+
     const sendVercel404 = () => {
         const requestId = `arnl-${Date.now()}-${Math.random().toString(16).substring(2, 10)}`;
         const vercelHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>404: NOT_FOUND</title></head><body><h1>404: NOT_FOUND</h1><p>ID: <code>"${requestId}"</code></p></body></html>`;
@@ -294,7 +349,7 @@ module.exports = async function handler(req, res) {
                 categoryHtml += '</div>';
             }
 
-            categoryHtml += '</main><script src="/script.js"></script></body></html>';
+            categoryHtml += '</main>' + buildFooter(siteTitle, siteIcon) + '<script src="/script.js"></script></body></html>';
             return res.status(200)
                 .setHeader('Content-Type', 'text/html; charset=utf-8')
                 .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400')
@@ -380,7 +435,7 @@ module.exports = async function handler(req, res) {
         return res.status(200)
             .setHeader('Content-Type', 'text/html; charset=utf-8')
             .setHeader('Cache-Control', htmlCacheControl)
-            .send(htmlContent);
+            .send(injectFooter(htmlContent, siteTitle, siteIcon));
 
     } catch (err) {
         return res.status(500).send('Internal Error: ' + err.message);
