@@ -1,50 +1,6 @@
 module.exports = async function handler(req, res) {
      const fullUrl = req.url || '';
 
-    if (fullUrl.includes('search-db') || (req.query && JSON.stringify(req.query).includes('search-db'))) {
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-
-        try {
-            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-            const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-
-            if (!supabaseUrl || !supabaseKey) {
-                return res.status(200).send(JSON.stringify({ error: "🚨 ОШИБКА: НЕТ КЛЮЧЕЙ SUPABASE В VERCEL" }));
-            }
-
-            
-            const response = await fetch(`${supabaseUrl}/rest/v1/pages?select=url_path,category_slug,html_content&limit=10000`, {
-                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
-            });
-            
-            if (!response.ok) {
-                return res.status(200).send(JSON.stringify({ error: "🚨 ОШИБКА ОТВЕТА ОТ SUPABASE" }));
-            }
-
-            const pagesData = await response.json();
-            if (Array.isArray(pagesData) && pagesData.length > 0) {
-                const searchDb = pagesData.map(page => {
-                    let title = 'Без названия';
-                    const html = page.html_content || '';
-                    const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-                    if (matchH1 && matchH1[1]) {
-                        title = matchH1[1].replace(/<[^>]*>/g, '').trim();
-                    }
-                    return {
-                        t: title,
-                        u: page.url_path ? (page.url_path.startsWith('/') ? page.url_path.slice(1) : page.url_path) : '',
-                        c: page.category_slug || ''
-                    };
-                });
-                return res.status(200).send(JSON.stringify(searchDb));
-            }
-            return res.status(200).send(JSON.stringify({ error: "🚨 SUPABASE ВЕРНУЛ ПУСТОТУ" }));
-        } catch (err) {
-            return res.status(200).send(JSON.stringify({ error: "🚨 ОШИБКА В CATCH БЛОКЕ", message: err.message }));
-        }
-    }
-
     const currentDomain = (req.headers.host || '').trim();
 
     // ===== ЕДИНЫЙ ФУТЕР СЕТИ: единственный источник, инжектится во все страницы =====
@@ -171,6 +127,40 @@ module.exports = async function handler(req, res) {
         }
 
         if (fullUrl.includes('//')) { return sendVercel404(); }
+
+        // /api/search-db тоже обслуживаем здесь: ищем данные только своего сайта
+        if (urlPath === '/api/search-db' || fullUrl.includes('search-db')) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            try {
+                const siteRes = await fetch(`${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id`, {
+                    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
+                });
+                const siteArr = await siteRes.json();
+                if (!Array.isArray(siteArr) || siteArr.length === 0) {
+                    return res.status(200).send('[]');
+                }
+                const pagesRes = await fetch(`${supabaseUrl}/rest/v1/pages?site_id=eq.${siteArr[0].id}&page_type=eq.article&select=url_path,category_slug,html_content&limit=10000`, {
+                    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
+                });
+                const pagesData = await pagesRes.json();
+                if (!Array.isArray(pagesData) || pagesData.length === 0) { return res.status(200).send('[]'); }
+                const searchDb = pagesData.map(page => {
+                    let title = 'Без названия';
+                    const html = page.html_content || '';
+                    const matchH1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                    if (matchH1 && matchH1[1]) { title = matchH1[1].replace(/<[^>]*>/g, '').trim(); }
+                    return {
+                        t: title,
+                        u: page.url_path ? (page.url_path.startsWith('/') ? page.url_path.slice(1) : page.url_path) : '',
+                        c: page.category_slug || ''
+                    };
+                });
+                return res.status(200).send(JSON.stringify(searchDb));
+            } catch (err) {
+                return res.status(200).send('[]');
+            }
+        }
 
         const urlParts = fullUrl.split('?');
         let urlPath = urlParts[0]; 
@@ -344,7 +334,7 @@ module.exports = async function handler(req, res) {
             const contentRange = catResponse.headers.get('content-range') || '';
             const totalCount = contentRange.includes('/') ? parseInt(contentRange.split('/')[1]) : catPages.length;
 
-            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="icon" type="image/png" href="/favicon.ico">${yandexVerification}<title>${russianCategoryTitle} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css?v=dev">${metrikaCode}</head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a><nav class="main-nav">${menuLinks}</nav></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <span>/</span> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
+            let categoryHtml = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="icon" type="image/png" href="/favicon.ico">${yandexVerification}<link rel="canonical" href="${protocol}://${currentDomain}/category/${currentCategorySlug}${page > 1 ? '/page/' + page : ''}"><title>${russianCategoryTitle}${page > 1 ? ' — страница ' + page : ''} | ${siteTitle}</title><link rel="stylesheet" href="/static/css/style.css?v=dev">${metrikaCode}</head><body><div class="topbar"></div><header class="site-header"><div class="container header-inner"><a href="/" class="logo"><span class="logo-icon">${siteIcon}</span> ${siteTitle}</a><nav class="main-nav">${menuLinks}</nav></div></header><div class="breadcrumbs"><div class="container"><a href="/">Главная</a> <span>/</span> <strong>${russianCategoryTitle}</strong></div></div><main class="container" style="padding: 40px 0;"><div class="cat-hero"><h1>${russianCategoryTitle}</h1></div><div class="cat-list" style="margin-top: 30px; display: grid; gap: 16px;">`;
 
             catPages.forEach((pageItem, index) => {
                 const html = pageItem.html_content || '';
