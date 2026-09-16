@@ -6,7 +6,7 @@ module.exports = async function handler(req, res) {
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
         try {
-            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL; 
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
             const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
             if (!supabaseUrl || !supabaseKey) {
@@ -97,7 +97,7 @@ module.exports = async function handler(req, res) {
     };
     // вырезает зашитый футер (из шаблона генерации) и ставит канонический
     const injectFooter = (html, siteTitle, siteIcon) => {
-        let out = html.replace(/<footer class="site-footer">[\s\S]*?<\/footer>/i, '');
+        let out = html.replace(/<footer class="site-footer"[^>]*>[\s\S]*?<\/footer>/i, '');
         out = out.replace('</body>', buildFooter(siteTitle, siteIcon) + '</body>');
         return out;
     };
