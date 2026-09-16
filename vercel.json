@@ -1,9 +1,8 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/favicon.ico", "destination": "/api/router?path=/favicon.ico" },
     { "source": "/", "destination": "/api/router?path=/" },
-    { "source": "/api/search-db", "destination": "/api/search-db" },
+    { "source": "/api/search-db", "destination": "/api/router?path=/api/search-db" },
     { "source": "/static/css/style.css", "destination": "/api/router?path=/static/css/style.css" },
     { "source": "/robots.txt", "destination": "/api/router?path=/robots.txt" },
     { "source": "/sitemap.xml", "destination": "/api/router?path=/sitemap.xml" },
