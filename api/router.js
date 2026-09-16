@@ -124,7 +124,7 @@ module.exports = async function handler(req, res) {
                 }
             }
             xml += `</urlset>`;
-            return res.status(200).setHeader('Content-Type', 'application/xml; charset=utf-8').setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=600').send(xml);
+            return res.status(200).setHeader('Content-Type', 'application/xml; charset=utf-8').setHeader('Cache-Control', 'public, max-age=3600, s-maxage=600, stale-while-revalidate=3600').send(xml);
         }
 
         const siteCheckUrl = `${supabaseUrl}/rest/v1/sites?domain=eq.${encodeURIComponent(currentDomain)}&select=id,site_title,site_icon,css_content,yandex_verification,metrika_id`;
@@ -297,7 +297,7 @@ module.exports = async function handler(req, res) {
             categoryHtml += '</main><script src="/script.js"></script></body></html>';
             return res.status(200)
                 .setHeader('Content-Type', 'text/html; charset=utf-8')
-                .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=2592000, stale-while-revalidate=2592000')
+                .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=3600, stale-while-revalidate=86400')
                 .send(categoryHtml);
         }
 
@@ -372,13 +372,17 @@ module.exports = async function handler(req, res) {
             htmlContent = htmlContent.replace('</body>', '<script src="/script.js"></script></body>');
         }
         
+        // главная несёт метрику/верификацию — обновляется быстро;
+        // статьи неизменны — длинный кэш держит hit-rate на миллионах URL
+        const htmlCacheControl = urlPath === '/'
+            ? 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400'
+            : 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800';
         return res.status(200)
             .setHeader('Content-Type', 'text/html; charset=utf-8')
-            .setHeader('Cache-Control', 'public, max-age=86400, s-maxage=2592000, stale-while-revalidate=2592000')
+            .setHeader('Cache-Control', htmlCacheControl)
             .send(htmlContent);
 
     } catch (err) {
         return res.status(500).send('Internal Error: ' + err.message);
     }
 };
-
