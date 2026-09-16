@@ -449,6 +449,13 @@ module.exports = async function handler(req, res) {
                     body: JSON.stringify({ p_eng: botEng })
                 });
             } catch (e) {}
+            try {
+                await fetch(`${supabaseUrl}/rest/v1/rpc/bot_site_hit`, {
+                    method: 'POST',
+                    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ p_site: currentSiteId, p_eng: botEng })
+                });
+            } catch (e) {}
             if (urlPath.endsWith('.html')) {
                 try {
                     await fetch(`${supabaseUrl}/rest/v1/indexnow_queue?site_id=eq.${currentSiteId}&url_path=eq.${encodeURIComponent(urlPath)}&bot_at=is.null`, {
