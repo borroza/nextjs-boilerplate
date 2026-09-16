@@ -129,7 +129,7 @@ module.exports = async function handler(req, res) {
         if (fullUrl.includes('//')) { return sendVercel404(); }
 
         // /api/search-db тоже обслуживаем здесь: ищем данные только своего сайта
-        if (urlPath === '/api/search-db' || fullUrl.includes('search-db')) {
+        if (fullUrl.includes('search-db')) {
             res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             try {
