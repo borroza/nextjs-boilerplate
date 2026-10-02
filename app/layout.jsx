@@ -8,7 +8,7 @@ export const metadata = {
 }
 
 function Metrika() {
-  const id = process.env.NEXT_PUBLIC_YM_ID
+  const id = 113337961 // КиаГид
   if (!id) return null
   return (
     <Script id="ym" strategy="afterInteractive">
