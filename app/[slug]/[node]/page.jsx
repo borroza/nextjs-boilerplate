@@ -33,7 +33,7 @@ export default function ArticlePage({ params }) {
         const h2s = [...page.html.matchAll(/<h2[^>]*>(.*?)<\/h2>/g)].map(m => m[1])
         if (h2s.length < 3) return null
         return (
-          <details className="article-toc"><summary>Содержание</summary>
+          <details className="article-toc" open><summary>Содержание</summary>
             <nav><ul>{h2s.map((h, i) => <li key={i}><a href={'#section-' + i}>{h}</a></li>)}</ul></nav>
           </details>
         )
