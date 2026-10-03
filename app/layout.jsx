@@ -25,7 +25,7 @@ export default function RootLayout({ children }) {
     <html lang="ru">
       <head><Metrika /></head>
       <body>
-        <noscript><div><img src="https://mc.yandex.ru/watch/{process.env.NEXT_PUBLIC_YM_ID}" style={{position:'absolute',left:'-9999px'}} alt="" /></div></noscript>
+        <noscript><div><img src="https://mc.yandex.ru/watch/113337961" style={{position:'absolute',left:'-9999px'}} alt="" /></div></noscript>
         <header className="site-header">
           <div className="wrap header-in">
             <a href="/" className="brand">Киа<span className="brand-accent">Гид</span></a>

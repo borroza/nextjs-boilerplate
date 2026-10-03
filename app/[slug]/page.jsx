@@ -11,7 +11,10 @@ export function generateStaticParams() {
 export function generateMetadata({ params }) {
   const page = getPage('/' + params.slug + '/')
   if (!page) return {}
-  return { title: page.title, description: page.description }
+  return {
+    title: page.title, description: page.description,
+    alternates: { canonical: '/' + params.slug + '/' }
+  }
 }
 
 export default function HubPage({ params }) {

@@ -11,7 +11,12 @@ export function generateStaticParams() {
 export function generateMetadata({ params }) {
   const page = getPage('/' + params.slug + '/' + params.node + '/')
   if (!page) return {}
-  return { title: page.title, description: page.description }
+  return {
+    title: page.title,
+    description: page.description,
+    alternates: { canonical: '/' + params.slug + '/' + params.node + '/' },
+    openGraph: { title: page.title, description: page.description, type: 'article', locale: 'ru_RU' }
+  }
 }
 
 export default function ArticlePage({ params }) {
@@ -21,10 +26,19 @@ export default function ArticlePage({ params }) {
   return (
     <article>
       <nav className="breadcrumbs">
-        <Link href="/">Главная</Link> / <Link href={modelHub}>Kia {params.slug}</Link> / {page.node}
+        <Link href="/">Главная</Link> / <Link href={modelHub}>Kia {params.slug.replace(/-/g, ' ')}</Link> / {page.node}
       </nav>
       <h1>{page.h1}</h1>
-      <div dangerouslySetInnerHTML={{ __html: page.html }} />
+      {(() => {
+        const h2s = [...page.html.matchAll(/<h2[^>]*>(.*?)<\/h2>/g)].map(m => m[1])
+        if (h2s.length < 3) return null
+        return (
+          <details className="article-toc"><summary>Содержание</summary>
+            <nav><ul>{h2s.map((h, i) => <li key={i}><a href={'#section-' + i}>{h}</a></li>)}</ul></nav>
+          </details>
+        )
+      })()}
+      <div dangerouslySetInnerHTML={{ __html: page.html.replace(/<h2[^>]*>/g, (m, o) => m) }} />
     </article>
   )
 }
