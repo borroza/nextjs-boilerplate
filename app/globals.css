@@ -120,3 +120,21 @@ details.article-toc a { color: var(--acc); }
 .model-badge { width: 44px; height: 44px; font-size: 1.2rem; }
 .model-name { font-size: 1.1rem; }
 .node-name { font-weight: 600; font-size: 1rem; }
+
+/* FAQ: красивое разделение */
+section[id="faq"] [itemprop="mainEntity"] {
+  margin: 16px 0; padding: 16px 20px; background: #f8f9fb;
+  border-left: 4px solid var(--acc); border-radius: 0 10px 10px 0;
+}
+section[id="faq"] h3[itemprop="name"] { font-size: 1.02rem; font-weight: 700; margin: 0 0 6px; color: var(--ink); }
+section[id="faq"] [itemprop="text"] { line-height: 1.65; }
+section[id="faq"] [itemprop="text"] strong { color: var(--acc); }
+
+/* Related: строки с разделителями */
+section.related p { line-height: 2.2; }
+section.related a { white-space: nowrap; }
+
+/* Таблицы: отступ */
+table { width: 100%; margin: 14px 0; }
+th { background: #f0f2f5; }
+td { border-bottom: 1px solid #eee; }
