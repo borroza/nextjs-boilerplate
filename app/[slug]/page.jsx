@@ -33,7 +33,7 @@ export default function HubPage({ params }) {
       {children.length > 0 && (
         <section className="related">
           <h2>Материалы раздела</h2>
-          <div className="hub-grid">
+          <div className="hub-children">
             {children.map(c => <Link key={c.url_path} href={c.url_path}>{c.title || c.node}</Link>)}
           </div>
         </section>

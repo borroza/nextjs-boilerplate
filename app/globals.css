@@ -138,3 +138,8 @@ section.related a { white-space: nowrap; }
 table { width: 100%; margin: 14px 0; }
 th { background: #f0f2f5; }
 td { border-bottom: 1px solid #eee; }
+
+/* Материалы раздела на хабах: вертикальный список */
+.hub-children { display:flex; flex-direction:column; gap:0; margin:16px 0; }
+.hub-children a { display:block; padding:10px 0; border-bottom:1px solid var(--line); color:var(--acc); font-size:1rem; }
+.hub-children a:hover { color:var(--ink); }
