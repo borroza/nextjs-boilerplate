@@ -31,7 +31,7 @@ export default function RootLayout({ children }) {
             <a href="/" className="brand">Киа<span className="brand-accent">Гид</span></a>
             <nav>
               <a href="/">Главная</a>
-              <a href="/about">О проекте</a>
+              <a href="/about">О проекте</a><a href="/politics">Политика</a><a href="/contacts">Контакты</a>
             </nav>
           </div>
         </header>
